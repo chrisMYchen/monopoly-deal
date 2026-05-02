@@ -1,0 +1,88 @@
+"use client";
+
+import { useState } from "react";
+
+// Tiny "?" button at the corner of the screen → bottom-sheet with a rules
+// summary. Always reachable so beginners can re-check rules mid-game without
+// leaving the room.
+
+export function HelpButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Open rules summary"
+        title="Rules summary"
+        className="fixed bottom-20 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-zinc-900/85 text-base font-bold shadow-xl backdrop-blur hover:bg-white/5"
+        data-testid="help-button"
+      >
+        ?
+      </button>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Rules summary"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="max-h-[80vh] w-full overflow-y-auto rounded-t-xl border border-white/15 bg-zinc-900 p-4 shadow-2xl sm:max-w-lg sm:rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">How to play</h3>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded px-2 py-1 text-sm opacity-70 hover:bg-white/10 hover:opacity-100"
+              >
+                Close
+              </button>
+            </div>
+            <div className="space-y-3 text-sm leading-relaxed">
+              <p>
+                <strong>Goal:</strong> first to 3 complete property sets in 3 different colors wins.
+              </p>
+              <p>
+                <strong>Each turn:</strong> draw 2 cards (5 if hand is empty) → play up to 3 cards
+                → end your turn. Hand limit is 7 cards at end of turn.
+              </p>
+              <p>
+                <strong>Each card</strong> can be played as a property (into your tableau), as money
+                (banked sideways), or for its action effect. Wilds must join an existing same-color
+                group; rainbow wilds need at least one solid card with them.
+              </p>
+              <details>
+                <summary className="cursor-pointer font-semibold">Action cards</summary>
+                <ul className="mt-2 ml-4 list-disc space-y-1 text-xs">
+                  <li><strong>Swipe</strong>: steal one property (not in a complete set).</li>
+                  <li><strong>Tribute</strong>: trade one of your properties for one of theirs.</li>
+                  <li><strong>Hostile Takeover</strong>: steal a complete set.</li>
+                  <li><strong>Eviction</strong>: force one opponent to pay $5M.</li>
+                  <li><strong>Tip Jar</strong>: every opponent owes you $2M.</li>
+                  <li><strong>Rent</strong>: charge rent on your color. ★ wild charges one opponent.</li>
+                  <li><strong>Doubler</strong>: must be played with a Rent card. Counts as 2 plays.</li>
+                  <li><strong>House / Hotel</strong>: +$3M / +$4M to a complete set's rent.</li>
+                  <li><strong>Round Trip</strong>: draw 2 extra cards.</li>
+                  <li><strong>Counter</strong>: cancel any action targeting you.</li>
+                </ul>
+              </details>
+              <details>
+                <summary className="cursor-pointer font-semibold">Tips</summary>
+                <ul className="mt-2 ml-4 list-disc space-y-1 text-xs">
+                  <li>Long-press any card to peek at its full description.</li>
+                  <li>Tap an opponent to see their full tableau and bank.</li>
+                  <li>The dot meter next to each name shows how close they are to winning (X/3).</li>
+                  <li>The pulsing yellow border on the top banner means it's your turn.</li>
+                  <li>"No change given" — paying $5 against a $2 debt loses the difference.</li>
+                </ul>
+              </details>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

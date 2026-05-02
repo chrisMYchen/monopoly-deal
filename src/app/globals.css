@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-felt: #1f6f4a;
+  --color-felt-dark: #0f3a26;
+  --color-table-rim: #4a3320;
+
+  --color-set-brown: #8b5a2b;
+  --color-set-light-blue: #87ceeb;
+  --color-set-pink: #d96aa3;
+  --color-set-orange: #f08030;
+  --color-set-red: #d93030;
+  --color-set-yellow: #f0c030;
+  --color-set-green: #2f9e57;
+  --color-set-dark-blue: #2848a0;
+  --color-set-railroad: #1a1a1a;
+  --color-set-utility: #c0d048;
+}
+
+html,
+body {
+  height: 100%;
+  color: white;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+  /* Felt: a warm radial vignette over a deep base. Subtle noise via overlapping
+     gradients keeps it from looking flat. No external image assets. */
+  background:
+    radial-gradient(
+      ellipse at 50% 35%,
+      color-mix(in oklab, var(--color-felt) 92%, white) 0%,
+      var(--color-felt) 35%,
+      var(--color-felt-dark) 100%
+    );
+  background-attachment: fixed;
+}
+
+/* Soft pulse for "your turn" banner — tells the active player without shouting. */
+@keyframes rr-pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(253, 224, 71, 0);
+    border-color: rgba(253, 224, 71, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 22px 0 rgba(253, 224, 71, 0.18);
+    border-color: rgba(253, 224, 71, 0.7);
+  }
+}
+
+.rr-pulse {
+  animation: rr-pulse-glow 2.4s ease-in-out infinite;
+}
