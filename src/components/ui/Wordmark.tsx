@@ -1,87 +1,112 @@
 "use client";
 
-// Brand wordmark: "Monopoly Deal" set in Fraunces (var(--font-display)) with
-// a small gold-rimmed coin glyph as a visual anchor. Used on Home + Lobby.
-// Pure typography + inline SVG — no external assets.
+// Brand wordmark — the canonical Monopoly logotype treatment paired with
+// "Deal" in Source Serif 4. The single strongest IP signal in the app.
+//
+// Anatomy:
+//   ┌──────────────┐
+//  ╔│  MONOPOLY   │╗  Deal
+//   └──────────────┘
+//
+// "MONOPOLY" sits inside a red box with a thin white inner outline and a
+// thin black outer outline (canonical signature). "Deal" sits beside it
+// in bold serif. The whole mark is a single inline SVG so it scales as
+// one piece.
 
 export type WordmarkProps = {
   size?: "sm" | "md" | "lg";
-  // Stack words on two lines (defaults to single line on lg, single elsewhere).
-  stacked?: boolean;
+  // When true, render only the red MONOPOLY box (no "Deal"). Used inside
+  // CardBack and the small corner brand stamp.
+  markOnly?: boolean;
   className?: string;
 };
 
 const SIZES = {
-  sm: { coin: 22, text: "text-2xl" },
-  md: { coin: 32, text: "text-4xl" },
-  lg: { coin: 48, text: "text-6xl sm:text-7xl" },
+  sm: { boxH: 22, mFont: 11, dealFont: "text-xl" },
+  md: { boxH: 32, mFont: 16, dealFont: "text-3xl" },
+  lg: { boxH: 56, mFont: 28, dealFont: "text-5xl sm:text-6xl" },
 };
 
-export function Wordmark({ size = "md", stacked, className }: WordmarkProps) {
+export function Wordmark({ size = "md", markOnly, className }: WordmarkProps) {
   const dims = SIZES[size];
   return (
-    <div
+    <span
       className={[
-        "inline-flex items-center gap-3 font-display font-semibold tracking-tight text-[var(--color-ink)]",
-        dims.text,
+        "inline-flex items-baseline gap-3 align-middle leading-none",
         className ?? "",
       ].join(" ")}
     >
-      <Coin px={dims.coin} />
-      {stacked ? (
-        <span className="leading-[0.95]">
-          <span className="block">Monopoly</span>
-          <span className="block italic text-[var(--color-accent)]">Deal</span>
-        </span>
-      ) : (
-        <span className="leading-none">
-          Monopoly{" "}
-          <span className="italic text-[var(--color-accent)]">Deal</span>
+      <MonopolyMark heightPx={dims.boxH} fontPx={dims.mFont} />
+      {!markOnly && (
+        <span
+          className={[
+            "font-display font-bold tracking-tight text-[var(--color-ink)]",
+            dims.dealFont,
+          ].join(" ")}
+        >
+          Deal
         </span>
       )}
-    </div>
+    </span>
   );
 }
 
-function Coin({ px }: { px: number }) {
-  // Gold coin with a deep-teal $ glyph. Self-contained SVG.
+// The canonical red-box logotype mark. SVG so the proportions stay perfect
+// at any size and the double outline (white inside, black outside) renders
+// crisply without 1px rendering surprises.
+function MonopolyMark({ heightPx, fontPx }: { heightPx: number; fontPx: number }) {
+  // Aspect: roughly 3.6:1 (canonical box is wide). Compute width from height.
+  const widthPx = Math.round(heightPx * 3.6);
+  const padX = Math.round(heightPx * 0.18);
+  // Letter spacing tuned so "MONOPOLY" fills the box edge-to-edge minus padding.
   return (
     <svg
-      width={px}
-      height={px}
-      viewBox="0 0 48 48"
-      fill="none"
-      aria-hidden
-      className="shrink-0 drop-shadow-[0_2px_4px_rgba(15,42,46,0.18)]"
+      width={widthPx}
+      height={heightPx}
+      viewBox={`0 0 ${widthPx} ${heightPx}`}
+      aria-label="Monopoly"
+      className="shrink-0 align-middle"
     >
-      <circle cx="24" cy="24" r="22" fill="var(--color-gold)" />
-      <circle
-        cx="24"
-        cy="24"
-        r="22"
-        fill="none"
-        stroke="var(--color-gold-deep)"
-        strokeWidth="2"
+      {/* Outer black border (1.5px equivalent at md size) */}
+      <rect
+        x="0"
+        y="0"
+        width={widthPx}
+        height={heightPx}
+        rx={Math.max(2, heightPx * 0.08)}
+        fill="#0A0A0A"
       />
-      <circle
-        cx="24"
-        cy="24"
-        r="17"
-        fill="none"
-        stroke="var(--color-gold-deep)"
-        strokeWidth="1.2"
-        opacity="0.55"
+      {/* Inner white border (the canonical signature) */}
+      <rect
+        x={Math.max(1, heightPx * 0.04)}
+        y={Math.max(1, heightPx * 0.04)}
+        width={widthPx - Math.max(1, heightPx * 0.04) * 2}
+        height={heightPx - Math.max(1, heightPx * 0.04) * 2}
+        rx={Math.max(2, heightPx * 0.06)}
+        fill="#FFFFFF"
       />
+      {/* Red fill */}
+      <rect
+        x={Math.max(2, heightPx * 0.1)}
+        y={Math.max(2, heightPx * 0.1)}
+        width={widthPx - Math.max(2, heightPx * 0.1) * 2}
+        height={heightPx - Math.max(2, heightPx * 0.1) * 2}
+        rx={Math.max(1, heightPx * 0.04)}
+        fill="var(--color-accent)"
+      />
+      {/* MONOPOLY text — tight sans caps, white */}
       <text
-        x="24"
-        y="32"
+        x={widthPx / 2}
+        y={heightPx / 2}
         textAnchor="middle"
-        fontFamily="var(--font-display)"
-        fontWeight="700"
-        fontSize="22"
-        fill="var(--color-inked)"
+        dominantBaseline="central"
+        fontFamily="var(--font-sans)"
+        fontWeight="900"
+        fontSize={fontPx}
+        letterSpacing={fontPx * 0.04}
+        fill="#FFFFFF"
       >
-        $
+        MONOPOLY
       </text>
     </svg>
   );

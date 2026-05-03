@@ -32,8 +32,8 @@ const COLOR_PALETTE: Record<string, string[]> = {
   darkBlue: ["#2A4FB0", "#6E89D6", "#FAF4E8"],
   railroad: ["#1F1F1F", "#5C5C5C", "#FAF4E8"],
   utility: ["#B0C436", "#D2DE7A", "#FAF4E8"],
-  // Win: the brand palette — gold + coral + mint + parchment highlight.
-  win: ["#E0B341", "#C8531A", "#2F8F70", "#0F2A2E", "#FAF4E8"],
+  // Win: the editorial brand palette — Monopoly red + ink + cream.
+  win: ["#D9242A", "#B61F23", "#111111", "#FAFAF7", "#FFFFFF"],
 };
 
 export function burstFromRect(rect: DOMRect, color?: string): void {

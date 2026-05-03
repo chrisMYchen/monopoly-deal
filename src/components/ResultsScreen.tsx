@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import { useEffect } from "react";
 
+import { MrMonopoly } from "./ui/MrMonopoly";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { PropertySetsView } from "./PropertySetsView";
 import { Button } from "./ui/Button";
@@ -44,32 +45,17 @@ export function ResultsScreen() {
     <main className="flex min-h-dvh flex-col items-center gap-7 p-6 text-center">
       <header className="mt-8 flex flex-col items-center gap-3">
         <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-ink-soft)]">
-          That's the game!
+          Game over
         </div>
-        <div className="relative">
-          {/* Soft gold radial glow behind the trophy */}
-          <span
-            aria-hidden
-            className="absolute inset-0 -z-10 m-auto h-32 w-32 rounded-full bg-[var(--color-gold)]/30 blur-3xl"
-          />
-          <motion.h1
-            initial={{ scale: 0.4, opacity: 0, rotate: -8 }}
-            animate={{ scale: 1, opacity: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 220, damping: 11, mass: 0.9 }}
-            className="font-display text-5xl font-bold tracking-tight sm:text-6xl"
-          >
-            <span aria-hidden className="mr-3">🏆</span>
-            <span className="rr-foil">{winner?.name ?? "Game over"}!</span>
-          </motion.h1>
-        </div>
-        <motion.p
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45, duration: 0.3 }}
-          className="font-display text-base italic text-[var(--color-ink-soft)]"
+        <motion.h1
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 220, damping: 16, mass: 0.85 }}
+          className="font-display text-5xl font-bold tracking-tight text-[var(--color-ink)] sm:text-6xl"
         >
-          Three colors. Three sets. Game over.
-        </motion.p>
+          <span aria-hidden className="mr-3">🏆</span>
+          {winner?.name ?? "Game over"}
+        </motion.h1>
       </header>
 
       <section className="flex w-full max-w-3xl flex-col gap-3">
@@ -82,16 +68,16 @@ export function ResultsScreen() {
               initial={{ opacity: 0, x: -16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{
-                delay: 0.55 + i * 0.08,
+                delay: 0.4 + i * 0.07,
                 type: "spring",
                 stiffness: 280,
                 damping: 22,
               }}
               className={[
-                "surface-paper flex flex-col gap-2 rounded-2xl p-4 text-left",
+                "relative flex flex-col gap-2 overflow-hidden rounded-2xl p-4 text-left",
                 isWin
-                  ? "ring-2 ring-[var(--color-gold)] ring-offset-2 ring-offset-[var(--color-bg)]"
-                  : "",
+                  ? "border-2 border-[var(--color-accent)] bg-[var(--color-accent-tint)]"
+                  : "border border-[var(--color-ink)]/12 bg-[var(--color-card)]",
               ].join(" ")}
               data-testid={`results-row-${i}`}
             >
@@ -105,9 +91,16 @@ export function ResultsScreen() {
                     {p.name}
                   </span>
                   {isWin && (
-                    <span className="rounded-full bg-[var(--color-gold)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-inked)]">
-                      Winner
-                    </span>
+                    <>
+                      <MrMonopoly
+                        variant="tipHat"
+                        size={28}
+                        className="text-[var(--color-ink)]"
+                      />
+                      <span className="rounded-full bg-[var(--color-accent)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-ink-on-dark)]">
+                        Winner
+                      </span>
+                    </>
                   )}
                 </h2>
                 <span className="text-xs font-semibold text-[var(--color-ink-soft)]">
@@ -117,9 +110,7 @@ export function ResultsScreen() {
               {p.propertySets.length > 0 ? (
                 <PropertySetsView propertySets={p.propertySets} compact playerId={p.id} />
               ) : (
-                <div className="text-xs italic text-[var(--color-ink-faint)]">
-                  no properties
-                </div>
+                <div className="text-xs text-[var(--color-ink-faint)]">no properties</div>
               )}
             </motion.article>
           );

@@ -37,7 +37,7 @@ function TriggerEntryCard({
 }) {
   if (!entry) return null;
   return (
-    <div className="mb-3 rounded border border-[var(--color-ink)]/15 bg-[var(--color-bg-tint)] px-2.5 py-2 text-[var(--color-ink)]">
+    <div className="mb-3 rounded border border-[var(--color-ink)]/15 bg-[var(--color-tint)] px-2.5 py-2 text-[var(--color-ink)]">
       <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest opacity-50">
         Triggering action
       </div>
@@ -66,7 +66,7 @@ function Modal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.08, ease: "linear" }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-inked)]/55 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-felt)]/55 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       data-testid={testId}
@@ -84,7 +84,7 @@ function Modal({
           {onCancel && (
             <button
               onClick={onCancel}
-              className="rounded-full px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-bg-tint)] hover:text-[var(--color-ink)]"
+              className="rounded-full px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-tint)] hover:text-[var(--color-ink)]"
               data-testid="dialog-cancel"
             >
               Cancel

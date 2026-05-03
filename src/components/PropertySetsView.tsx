@@ -1,6 +1,8 @@
 "use client";
 
 import { Card } from "./Card";
+import { HouseIcon } from "./icons/HouseIcon";
+import { HotelIcon } from "./icons/HotelIcon";
 import { SET_DEFS, cardById, type SetColor } from "@/engine/cards";
 import { rentForGroup } from "@/engine/selectors";
 import type { PropertySet } from "@/engine/state";
@@ -29,7 +31,7 @@ export function PropertySetsView({
   playerId?: string;
 }) {
   if (propertySets.length === 0) {
-    return <div className="text-xs opacity-50">no properties</div>;
+    return <div className="text-xs text-[var(--color-ink-faint)]">no properties</div>;
   }
   return (
     <div className="flex flex-wrap gap-2">
@@ -41,23 +43,24 @@ export function PropertySetsView({
           <div
             key={`${group.color}-${gi}`}
             className={[
-              "flex flex-col gap-1 rounded-md border p-1 transition-all",
-              complete ? "border-yellow-400/70 bg-yellow-400/10" : "border-white/15 bg-white/5",
+              "flex flex-col gap-1 rounded-lg border-[1.5px] p-1.5 transition-colors",
+              complete
+                ? "border-[var(--color-accent)] bg-[var(--color-accent-tint)]"
+                : "border-[var(--color-ink)]/15 bg-[var(--color-card)]",
             ].join(" ")}
             data-testid={`property-set-${group.color}-${gi}`}
             data-complete={complete}
             data-player-id={playerId}
             data-set-color={group.color}
           >
-            <div className="flex items-center justify-between gap-2 px-1 text-[10px] uppercase tracking-widest opacity-70">
+            <div className="flex items-center justify-between gap-2 px-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">
               <span className="capitalize">
                 {group.color} {group.cardIds.length}/{def.complete}
               </span>
               <span className="flex items-center gap-1">
-                {/* Rent value at-a-glance: experts read this; beginners see */}
-                {/* immediately how much rent costs for each color. */}
+                {/* Rent value at-a-glance */}
                 <span
-                  className="rounded bg-emerald-300/15 px-1 font-mono text-emerald-200"
+                  className="tabular rounded bg-[var(--color-tint)] px-1 font-bold text-[var(--color-ink)]"
                   title={
                     complete
                       ? `Rent: $${rent}M${group.hasHouse || group.hasHotel ? " (with H/H)" : ""}`
@@ -67,9 +70,13 @@ export function PropertySetsView({
                   ${rent}M
                 </span>
                 {(group.hasHouse || group.hasHotel) && (
-                  <span className="rounded bg-amber-200 px-1 text-amber-900">
-                    {group.hasHouse && "🏠"}
-                    {group.hasHotel && "🏨"}
+                  <span className="inline-flex items-center gap-0.5">
+                    {group.hasHouse && (
+                      <HouseIcon size={14} aria-label="House" />
+                    )}
+                    {group.hasHotel && (
+                      <HotelIcon size={14} aria-label="Hotel" />
+                    )}
                   </span>
                 )}
               </span>
@@ -85,12 +92,11 @@ export function PropertySetsView({
                     key={cid}
                     className={[
                       "relative",
-                      // Cyan pulse + halo so the swapped card pops out of the
-                      // play area without the user having to compare states. The
-                      // ring offset matches the existing "selected" treatment
-                      // so the visual language stays consistent.
+                      // Red pulse on freshly swapped cards — matches the brand accent
+                      // so the cue reads as "what changed" without introducing a
+                      // separate signal color.
                       isFlashing
-                        ? "rounded-md ring-2 ring-cyan-300 ring-offset-2 ring-offset-zinc-900 shadow-[0_0_24px_-4px_rgba(103,232,249,0.65)] animate-pulse"
+                        ? "rounded-md ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-felt)] animate-pulse"
                         : "",
                     ].join(" ")}
                   >
@@ -106,7 +112,7 @@ export function PropertySetsView({
                     />
                     {isWild && (
                       <span
-                        className="pointer-events-none absolute -right-1 -top-1 rounded-full border border-zinc-900 bg-yellow-300 px-1 text-[8px] font-bold uppercase tracking-widest text-zinc-900 shadow"
+                        className="pointer-events-none absolute -right-1 -top-1 rounded-full border border-[var(--color-ink)] bg-[var(--color-warning)] px-1 text-[8px] font-bold uppercase tracking-widest text-[var(--color-ink)]"
                         title={
                           c.kind === "wild2"
                             ? `Wild (${c.sets[0]}/${c.sets[1]}) — tap on your turn to reassign (free)`
@@ -118,7 +124,7 @@ export function PropertySetsView({
                     )}
                     {isFlashing && (
                       <span
-                        className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/80 bg-cyan-500/95 px-1.5 py-[1px] text-[9px] font-bold uppercase tracking-widest text-white shadow"
+                        className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--color-accent)] px-1.5 py-[1px] text-[9px] font-bold uppercase tracking-widest text-[var(--color-ink-on-dark)]"
                         aria-hidden
                       >
                         Swapped

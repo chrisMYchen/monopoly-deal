@@ -114,7 +114,7 @@ export function PlayLogSheet({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col justify-end bg-[var(--color-inked)]/75 backdrop-blur-sm sm:items-center sm:justify-center sm:p-8"
+      className="fixed inset-0 z-40 flex flex-col justify-end bg-[var(--color-felt)]/75 backdrop-blur-sm sm:items-center sm:justify-center sm:p-8"
       role="dialog"
       aria-modal="true"
       aria-label="Play log"
@@ -166,8 +166,8 @@ export function PlayLogSheet({
               className={[
                 "inline-flex min-h-11 items-center rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-widest transition",
                 filter === k
-                  ? "bg-[var(--color-gold)] text-[var(--color-inked)]"
-                  : "opacity-70 hover:bg-white/10 hover:opacity-100",
+                  ? "bg-[var(--color-accent)] text-[var(--color-ink-on-dark)]"
+                  : "text-white/70 hover:bg-white/10 hover:text-white",
               ].join(" ")}
               data-testid={`play-log-filter-${k}`}
             >
@@ -194,7 +194,7 @@ export function PlayLogSheet({
                   key={`${entry.at}-${i}`}
                   className={[
                     "px-2 py-2",
-                    targeted ? "bg-cyan-400/10" : "",
+                    targeted ? "bg-[var(--color-accent)]/12" : "",
                   ].join(" ")}
                 >
                   <LogEntryRow

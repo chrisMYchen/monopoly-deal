@@ -44,7 +44,7 @@ export function GameLog({ state }: { state: ProjectedGameState }) {
     >
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between gap-2 px-3 py-1.5 transition hover:bg-[var(--color-bg-tint)]"
+        className="flex items-center justify-between gap-2 px-3 py-1.5 transition hover:bg-[var(--color-tint)]"
         aria-expanded={open}
         aria-label={open ? "Collapse game log" : "Expand game log"}
       >

@@ -49,15 +49,21 @@ function JustSayNoArt(props: ArtProps) {
   );
 }
 
-// A reaching hand pinching a single card.
+// A reaching hand pinching a single card — Mr. Monopoly's top hat hovers
+// above as a canonical "thief in a top hat" wink.
 function SlyDealArt(props: ArtProps) {
   return (
     <Frame {...props}>
-      <rect x="32" y="10" width="20" height="28" rx="2" fill="currentColor" opacity="0.25" />
-      <rect x="32" y="10" width="20" height="28" rx="2" />
-      <path d="M14 38 C 14 30, 22 28, 26 32 L 30 36" />
-      <path d="M22 44 C 22 38, 28 36, 32 40 L 36 42" />
-      <path d="M14 38 L14 50 L36 50 L36 42" />
+      {/* Floating top hat — IP nod */}
+      <ellipse cx="20" cy="20" rx="11" ry="1.4" fill="currentColor" opacity="0.6" />
+      <rect x="13" y="10" width="14" height="10" rx="0.6" fill="currentColor" opacity="0.5" />
+      {/* Card being lifted */}
+      <rect x="34" y="14" width="20" height="28" rx="2" fill="currentColor" opacity="0.25" />
+      <rect x="34" y="14" width="20" height="28" rx="2" />
+      {/* Reaching hand */}
+      <path d="M14 42 C 14 34, 22 32, 26 36 L 30 40" />
+      <path d="M22 48 C 22 42, 28 40, 32 44 L 36 46" />
+      <path d="M14 42 L14 54 L36 54 L36 46" />
     </Frame>
   );
 }
@@ -137,31 +143,36 @@ function DoubleRentArt(props: ArtProps) {
   );
 }
 
-// Monopoly-style house silhouette.
+// Canonical green-house silhouette — pitched roof + chimney, matches
+// HouseIcon used elsewhere in the UI.
 function HouseArt(props: ArtProps) {
   return (
     <Frame {...props}>
-      <path d="M14 28 L32 14 L50 28 L50 50 L14 50 Z" fill="currentColor" opacity="0.25" />
-      <path d="M14 28 L32 14 L50 28 L50 50 L14 50 Z" />
-      <rect x="28" y="36" width="8" height="14" />
-      <rect x="18" y="32" width="6" height="6" />
-      <rect x="40" y="32" width="6" height="6" />
+      <path d="M12 30 L32 12 L52 30 L48 30 L48 52 L16 52 L16 30 Z" fill="currentColor" opacity="0.25" />
+      <path d="M12 30 L32 12 L52 30 L48 30 L48 52 L16 52 L16 30 Z" />
+      {/* Chimney */}
+      <rect x="40" y="14" width="5" height="9" fill="currentColor" opacity="0.8" />
+      {/* Door */}
+      <rect x="28" y="38" width="8" height="14" />
     </Frame>
   );
 }
 
-// Stretched hotel building with multiple windows.
+// Canonical red-hotel silhouette — wide low-pitch roof + two chimneys,
+// matches HotelIcon used elsewhere in the UI.
 function HotelArt(props: ArtProps) {
   return (
     <Frame {...props}>
-      <path d="M8 22 L32 10 L56 22 L56 52 L8 52 Z" fill="currentColor" opacity="0.2" />
-      <path d="M8 22 L32 10 L56 22 L56 52 L8 52 Z" />
-      <rect x="14" y="28" width="6" height="6" />
-      <rect x="26" y="28" width="6" height="6" />
-      <rect x="38" y="28" width="6" height="6" />
-      <rect x="14" y="38" width="6" height="6" />
-      <rect x="38" y="38" width="6" height="6" />
-      <rect x="26" y="40" width="6" height="12" />
+      <path d="M6 24 L32 12 L58 24 L54 24 L54 52 L10 52 L10 24 Z" fill="currentColor" opacity="0.22" />
+      <path d="M6 24 L32 12 L58 24 L54 24 L54 52 L10 52 L10 24 Z" />
+      {/* Two chimneys */}
+      <rect x="16" y="14" width="5" height="9" fill="currentColor" opacity="0.8" />
+      <rect x="42" y="14" width="5" height="9" fill="currentColor" opacity="0.8" />
+      {/* Door */}
+      <rect x="28" y="38" width="8" height="14" />
+      {/* Two windows */}
+      <rect x="16" y="30" width="7" height="6" />
+      <rect x="40" y="30" width="7" height="6" />
     </Frame>
   );
 }

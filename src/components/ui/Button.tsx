@@ -1,52 +1,49 @@
 "use client";
 
-// Tactile button — every CTA in the app routes through this. Shape is always
-// pill (rounded-full); the variant controls fill / ink / shadow. The press
-// depth (sticker shadow → press shadow + 2px translate) gives the button a
-// physical feel without ever blocking input.
+// Tactile button — every CTA in the app routes through this. Flat fills,
+// NO drop shadows on chrome (NYT discipline). Press = darken background,
+// no transform. Cards are the only thing in the app that floats.
 //
-// Variants line up to the design language:
-//   primary  — coral fill on cream ink, the "do it" CTA
-//   secondary — paper fill, deep teal border + ink, the "ok / cancel" CTA
-//   ghost    — no fill, deep teal ink, used for affordances and toggles
-//   danger   — coral outline that warms on hover
-//   inked    — deep teal fill on cream ink, used inside paper panels for emphasis
+// Variants:
+//   primary   — solid Monopoly red, white ink (the main CTA)
+//   secondary — white fill, ink border (the alternate)
+//   ghost     — transparent + ink, hover tint (toggles, dismissals)
+//   inked     — felt fill + white ink (used INSIDE the felt panel for emphasis)
+//   danger    — red outline, fills red on hover
 //
 // Sizes:
-//   sm    — h-9 (pills, top banner widgets)
-//   md    — h-11 (default)
-//   lg    — h-14, larger type, thicker shadow (signature CTAs like Lobby Start)
+//   sm — h-9
+//   md — h-11 (default)
+//   lg — h-14, larger type, signature CTAs
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "inked";
+type Variant = "primary" | "secondary" | "ghost" | "inked" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const VARIANT: Record<Variant, string> = {
   primary:
-    "bg-[var(--color-accent)] text-[var(--color-ink-inverse)] hover:bg-[var(--color-accent-hot)] btn-sticker disabled:bg-[var(--color-bg-tint)] disabled:text-[var(--color-ink-faint)] disabled:shadow-none",
+    "bg-[var(--color-accent)] text-[var(--color-ink-on-dark)] hover:bg-[var(--color-accent-deep)] active:bg-[var(--color-accent-deep)] disabled:bg-[var(--color-tint)] disabled:text-[var(--color-ink-faint)]",
   secondary:
-    "bg-[var(--color-paper)] text-[var(--color-ink)] border border-[var(--color-ink)]/15 hover:bg-[var(--color-paper-warm)] btn-sticker disabled:bg-[var(--color-bg-tint)] disabled:text-[var(--color-ink-faint)] disabled:shadow-none",
+    "bg-[var(--color-card)] text-[var(--color-ink)] border-[1.5px] border-[var(--color-ink)] hover:bg-[var(--color-tint)] active:bg-[var(--color-tint)] disabled:border-[var(--color-ink-faint)] disabled:text-[var(--color-ink-faint)]",
   ghost:
-    "bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ink)]/8 disabled:text-[var(--color-ink-faint)]",
-  danger:
-    "bg-transparent text-[var(--color-accent)] border border-[var(--color-accent)]/40 hover:bg-[var(--color-accent)] hover:text-[var(--color-ink-inverse)] btn-sticker",
+    "bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-tint)] active:bg-[var(--color-tint)] disabled:text-[var(--color-ink-faint)]",
   inked:
-    "bg-[var(--color-inked)] text-[var(--color-ink-inverse)] hover:bg-[var(--color-inked-soft)] btn-sticker disabled:opacity-60",
+    "bg-[color-mix(in_oklab,var(--color-felt)_88%,white)] text-[var(--color-ink-on-dark)] hover:bg-[color-mix(in_oklab,var(--color-felt)_75%,white)] disabled:opacity-60",
+  danger:
+    "bg-transparent text-[var(--color-accent)] border-[1.5px] border-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-ink-on-dark)]",
 };
 
 const SIZE: Record<Size, string> = {
-  sm: "h-9 px-3 text-sm",
+  sm: "h-9 px-3.5 text-sm",
   md: "h-11 px-5 text-[15px]",
-  lg: "h-14 px-7 text-lg font-semibold",
+  lg: "h-14 px-7 text-lg",
 };
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
   size?: Size;
   fullWidth?: boolean;
-  // Render the inner content inside a <span> so the press transform doesn't
-  // affect children that need their own positioning (e.g. icons + text).
   iconLeading?: ReactNode;
   iconTrailing?: ReactNode;
 };
@@ -67,6 +64,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const cls = [
     "inline-flex items-center justify-center gap-2 rounded-full font-semibold whitespace-nowrap select-none",
+    "transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]",
     "disabled:cursor-not-allowed",
     VARIANT[variant],
     SIZE[size],
