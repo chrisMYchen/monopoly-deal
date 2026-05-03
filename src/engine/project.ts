@@ -12,7 +12,7 @@ export type ProjectedPlayer = {
   hand: CardId[];
   handCount: number;
   bank: CardId[];
-  tableau: GameState["players"][number]["tableau"];
+  propertySets: GameState["players"][number]["propertySets"];
   connected: boolean;
 };
 
@@ -46,7 +46,7 @@ export function projectStateForPlayer(
       hand: isSelf ? [...p.hand] : [],
       handCount: p.hand.length,
       bank: [...p.bank],
-      tableau: p.tableau.map((g) => ({ ...g, cardIds: [...g.cardIds] })),
+      propertySets: p.propertySets.map((g) => ({ ...g, cardIds: [...g.cardIds] })),
       connected: p.connected,
     };
   });

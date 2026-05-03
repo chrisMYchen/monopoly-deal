@@ -39,7 +39,7 @@ function injectBank(state: GameState, playerId: string, cardIds: CardId[]): Game
   };
 }
 
-function injectTableau(
+function injectPropertySets(
   state: GameState,
   playerId: string,
   groups: { color: import("./cards").SetColor; cardIds: CardId[] }[],
@@ -50,7 +50,7 @@ function injectTableau(
       if (p.id !== playerId) return p;
       return {
         ...p,
-        tableau: groups.map((g) => ({
+        propertySets: groups.map((g) => ({
           color: g.color,
           cardIds: g.cardIds,
           hasHouse: false,
@@ -97,7 +97,7 @@ describe("onClockPlayerId", () => {
     const slyCard = findCard((c) => c.kind === "action" && c.action === "slyDeal");
     const red = findCard((c) => c.kind === "property" && c.set === "red");
     s = injectHand(s, "p1", [slyCard]);
-    s = injectTableau(s, "p2", [{ color: "red", cardIds: [red] }]);
+    s = injectPropertySets(s, "p2", [{ color: "red", cardIds: [red] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_SLY_DEAL",
@@ -116,7 +116,7 @@ describe("onClockPlayerId", () => {
     const red = findCard((c) => c.kind === "property" && c.set === "red");
     s = injectHand(s, "p1", [slyCard]);
     s = injectHand(s, "p2", [jsn]);
-    s = injectTableau(s, "p2", [{ color: "red", cardIds: [red] }]);
+    s = injectPropertySets(s, "p2", [{ color: "red", cardIds: [red] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_SLY_DEAL",
@@ -148,7 +148,7 @@ describe("autoActionFor", () => {
     const slyCard = findCard((c) => c.kind === "action" && c.action === "slyDeal");
     const red = findCard((c) => c.kind === "property" && c.set === "red");
     s = injectHand(s, "p1", [slyCard]);
-    s = injectTableau(s, "p2", [{ color: "red", cardIds: [red] }]);
+    s = injectPropertySets(s, "p2", [{ color: "red", cardIds: [red] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_SLY_DEAL",
@@ -216,7 +216,7 @@ describe("pickAutoPayment", () => {
       name: "X",
       hand: [],
       bank: [],
-      tableau: [],
+      propertySets: [],
       connected: true,
       ...over,
     };
@@ -248,7 +248,7 @@ describe("pickAutoPayment", () => {
     const red = findCard((c) => c.kind === "property" && c.set === "red");
     const payer = makePayer({
       bank: [m1],
-      tableau: [{ color: "red", cardIds: [red], hasHouse: false, hasHotel: false }],
+      propertySets: [{ color: "red", cardIds: [red], hasHouse: false, hasHotel: false }],
     });
     const picked = pickAutoPayment(payer, 4);
     // bank = $1, property = $3, total = $4, debt = $4 → all assets paid.

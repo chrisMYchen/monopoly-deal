@@ -198,7 +198,7 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
             cards → end your turn. End-of-turn hand limit is 7.
           </p>
           <p>
-            Cards can be played as <em>property</em> (into your tableau), as <em>money</em> (into
+            Cards can be played as <em>property</em> (laid down in front of you), as <em>money</em> (into
             your bank, sideways), or for their <em>action</em> effect. Wild cards must join an
             existing same-color group; rainbow wilds need at least one solid card with them.
           </p>

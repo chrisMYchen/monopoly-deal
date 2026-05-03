@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup } from "motion/react";
 import {
   DndContext,
@@ -48,7 +48,7 @@ import { HelpButton } from "./HelpSheet";
 import { OpponentStrip } from "./OpponentStrip";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { SetProgress } from "./SetProgress";
-import { TableauView } from "./TableauView";
+import { PropertySetsView } from "./PropertySetsView";
 import { Toasts } from "./Toasts";
 import { PlaysPill } from "./PlaysPill";
 import { TurnTimerPill } from "./TurnTimerPill";
@@ -127,6 +127,39 @@ function PlayingTableInner({
   const [selectedCardId, setSelectedCardId] = useState<CardId | null>(null);
   const [draft, setDraft] = useState<ActionDraft>(null);
 
+  // Cards that just changed hands via Forced Deal — pulse-highlighted in their
+  // new owners' play areas until the player has visually registered the swap. Cleared on
+  // a timer so the cue doesn't linger past the moment it's useful.
+  const [flashingCardIds, setFlashingCardIds] = useState<Set<string>>(() => new Set());
+  const lastSeenLogLength = useRef(state.log.length);
+  useEffect(() => {
+    const newOnes = state.log.slice(lastSeenLogLength.current);
+    lastSeenLogLength.current = state.log.length;
+    const swapped: string[] = [];
+    for (const e of newOnes) {
+      if (e.swap) {
+        swapped.push(e.swap.gaveCardId, e.swap.tookCardId);
+      }
+    }
+    if (swapped.length === 0) return;
+    setFlashingCardIds((cur) => {
+      const next = new Set(cur);
+      for (const id of swapped) next.add(id);
+      return next;
+    });
+    // Auto-clear each id after the toast lifetime; matches the moment the
+    // user has had time to look at the swap and is ready for a calm board.
+    const ttl = 5000;
+    const timer = window.setTimeout(() => {
+      setFlashingCardIds((cur) => {
+        const next = new Set(cur);
+        for (const id of swapped) next.delete(id);
+        return next;
+      });
+    }, ttl);
+    return () => window.clearTimeout(timer);
+  }, [state.log]);
+
   const send = (action: Action) => client.sendAction(action);
 
   // Register the latest drag-end handler so the outer DndContext routes
@@ -152,7 +185,7 @@ function PlayingTableInner({
 
     const c = cardById(card);
 
-    if (overKind === "self-tableau") {
+    if (overKind === "self-properties") {
       if (c.kind === "property") {
         send({ type: "PLAY_PROPERTY", playerId: selfId, cardId: card, assignedColor: c.set });
         setSelectedCardId(null);
@@ -167,7 +200,7 @@ function PlayingTableInner({
         return;
       }
       if (c.kind === "action") {
-        // House/Hotel land on tableau (open picker); other actions handled below.
+        // House/Hotel land on a property set (open picker); other actions handled below.
         if (c.action === "house") {
           setDraft({ kind: "house-pick", cardId: card, isHotel: false });
           return;
@@ -188,7 +221,7 @@ function PlayingTableInner({
         }
         if (c.action === "rent") {
           const sets = (c.rentSets ?? []) as SetColor[];
-          const owned = sets.filter((color) => self.tableau.some((g) => g.color === color && g.cardIds.length > 0));
+          const owned = sets.filter((color) => self.propertySets.some((g) => g.color === color && g.cardIds.length > 0));
           setDraft({ kind: "rent-pick-color", cardId: card, allowedColors: owned.length > 0 ? owned : sets, isWild: !!c.rentSingleTarget });
           return;
         }
@@ -223,7 +256,7 @@ function PlayingTableInner({
         case "rent":
           if (c.rentSingleTarget) {
             const sets = (c.rentSets ?? []) as SetColor[];
-            const owned = sets.filter((color) => self.tableau.some((g) => g.color === color && g.cardIds.length > 0));
+            const owned = sets.filter((color) => self.propertySets.some((g) => g.color === color && g.cardIds.length > 0));
             if (owned.length === 1) {
               send({ type: "PLAY_RENT", playerId: selfId, cardId: card, color: owned[0]!, singleTargetId: overOpponentId });
             } else {
@@ -279,7 +312,7 @@ function PlayingTableInner({
         preview = { kind: "amount", amount: 2 };
       } else if (w.declaration.kind === "rent") {
         const sourcePlayer = state.players.find((p) => p.id === w.declaration.sourceId);
-        const baseGroup = sourcePlayer?.tableau.find(
+        const baseGroup = sourcePlayer?.propertySets.find(
           (g) => w.declaration.kind === "rent" && g.color === w.declaration.color,
         );
         const baseRent = baseGroup ? rentForUI(baseGroup) : 0;
@@ -342,7 +375,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -370,7 +403,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -384,7 +417,7 @@ function PlayingTableInner({
           onPick={(pid) => setDraft({ kind: "sly-pick-card", cardId: draft.cardId, targetPlayerId: pid })}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -397,7 +430,7 @@ function PlayingTableInner({
           title={`Pick a property to take from ${target.name}`}
           opponent={target}
           predicate={(gi, _cid) => {
-            const g = target.tableau[gi]!;
+            const g = target.propertySets[gi]!;
             return g.cardIds.length < /* not complete */ 99 && !isCompleteForUI(g, state);
           }}
           onPick={(cardId) => {
@@ -413,7 +446,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -424,13 +457,13 @@ function PlayingTableInner({
         <MyPropertyPicker
           title="Pick one of your properties to trade"
           self={self}
-          predicate={(gi) => !isCompleteForUI(self.tableau[gi]!, state)}
+          predicate={(gi) => !isCompleteForUI(self.propertySets[gi]!, state)}
           onPick={(cardId) =>
             setDraft({ kind: "forced-pick-target", cardId: draft.cardId, myCardId: cardId })
           }
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -451,7 +484,7 @@ function PlayingTableInner({
           }
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -463,7 +496,7 @@ function PlayingTableInner({
         <OpponentPropertyPicker
           title={`Pick ${target.name}'s property to take`}
           opponent={target}
-          predicate={(gi) => !isCompleteForUI(target.tableau[gi]!, state)}
+          predicate={(gi) => !isCompleteForUI(target.propertySets[gi]!, state)}
           onPick={(cardId) => {
             send({
               type: "PLAY_FORCED_DEAL",
@@ -478,7 +511,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -492,7 +525,7 @@ function PlayingTableInner({
           onPick={(pid) => setDraft({ kind: "breaker-pick-set", cardId: draft.cardId, targetPlayerId: pid })}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -518,7 +551,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -541,7 +574,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -567,7 +600,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -591,7 +624,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -615,7 +648,7 @@ function PlayingTableInner({
           }}
           onCancel={() => setDraft(null)}
         />
-        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
       </Wrapper>
     );
   }
@@ -649,6 +682,7 @@ function PlayingTableInner({
         selectedCardId={selectedCardId}
         setSelectedCardId={setSelectedCardId}
         onWildClick={onWildClick}
+        flashingCardIds={flashingCardIds}
       />
       {isMyTurn && state.pending === null && (
         <ActionBar
@@ -674,8 +708,8 @@ function PlayingTableInner({
 
 function Wrapper({ state, children }: { state: ProjectedGameState; children: React.ReactNode }) {
   // LayoutGroup ensures Motion shares the layout-tracking root across the
-  // entire game surface: a card moving from hand to tableau, or from one
-  // player's tableau to another's via Sly Deal, animates smoothly because
+  // entire game surface: a card moving from hand to play area, or from one
+  // player's properties to another's via Sly Deal, animates smoothly because
   // both endpoints share the same `layoutId="card-<id>"`.
   return (
     <LayoutGroup>
@@ -683,7 +717,7 @@ function Wrapper({ state, children }: { state: ProjectedGameState; children: Rea
         <TopBanner state={state} />
         {children}
         <GameLog log={state.log} />
-        <Toasts log={state.log} />
+        <Toasts log={state.log} selfId={state.selfId} />
         <HelpButton />
       </main>
     </LayoutGroup>
@@ -780,7 +814,7 @@ function nameOf(state: ProjectedGameState, pid: string): string {
   return state.players.find((p) => p.id === pid)?.name ?? pid;
 }
 
-function isCompleteForUI(group: import("@/engine/state").TableauGroup, _state: ProjectedGameState): boolean {
+function isCompleteForUI(group: import("@/engine/state").PropertySet, _state: ProjectedGameState): boolean {
   // Re-import the engine helper inline to avoid extra import noise in this file.
   // We compare against the standard def — same as engine `isComplete`.
   const completeBy = {
@@ -799,6 +833,7 @@ function RestOfTable({
   selectedCardId,
   setSelectedCardId,
   onWildClick,
+  flashingCardIds,
 }: {
   state: ProjectedGameState;
   self: ProjectedPlayer;
@@ -808,10 +843,15 @@ function RestOfTable({
   selectedCardId: CardId | null;
   setSelectedCardId: (id: CardId | null) => void;
   onWildClick?: (cardId: CardId, color: SetColor) => void;
+  flashingCardIds?: Set<string>;
 }) {
   return (
     <>
-      <OpponentStrip opponents={opponents} currentTurnPlayerId={currentPlayer.id} />
+      <OpponentStrip
+        opponents={opponents}
+        currentTurnPlayerId={currentPlayer.id}
+        flashingCardIds={flashingCardIds}
+      />
       <Center state={state} />
       <SelfArea
         self={self}
@@ -819,7 +859,8 @@ function RestOfTable({
         state={state}
         onCardSelect={(id) => setSelectedCardId(id)}
         selectedCardId={selectedCardId}
-        onTableauCardClick={onWildClick}
+        onPropertyCardClick={onWildClick}
+        flashingCardIds={flashingCardIds}
       />
     </>
   );
@@ -862,18 +903,20 @@ function SelfArea({
   state,
   onCardSelect,
   selectedCardId,
-  onTableauCardClick,
+  onPropertyCardClick,
+  flashingCardIds,
 }: {
   self: ProjectedPlayer;
   isMyTurn: boolean;
   state: ProjectedGameState;
   onCardSelect: (id: CardId | null) => void;
   selectedCardId: CardId | null;
-  onTableauCardClick?: (cardId: CardId, color: SetColor) => void;
+  onPropertyCardClick?: (cardId: CardId, color: SetColor) => void;
+  flashingCardIds?: Set<string>;
 }) {
   const completedSets = distinctCompletedSets(self);
   const wildIds = new Set<CardId>();
-  for (const g of self.tableau) {
+  for (const g of self.propertySets) {
     for (const cid of g.cardIds) {
       const c = cardById(cid);
       if (c.kind === "wild2" || c.kind === "wild10") wildIds.add(cid);
@@ -912,23 +955,24 @@ function SelfArea({
       {bankOpen && <SelfBankSheet self={self} onClose={() => setBankOpen(false)} />}
       {isMyTurn && wildIds.size > 0 && (
         <p className="text-[11px] opacity-50" aria-live="polite">
-          Tap a wild card in your tableau to reassign its color (free).
+          Tap a wild card in your properties to reassign its color (free).
         </p>
       )}
       <DropZone
-        id="self-tableau"
-        data={{ kind: "self-tableau" }}
+        id="self-properties"
+        data={{ kind: "self-properties" }}
         active={isMyTurn && state.pending === null && state.hasDrawnThisTurn}
         ariaLabel="Drop here to play a property"
         className="rounded-md"
         hoverClassName="ring-2 ring-blue-300/80 ring-offset-2 ring-offset-zinc-900 bg-blue-300/5"
       >
-        <TableauView
-          tableau={self.tableau}
-          onCardClick={onTableauCardClick && isMyTurn ? onTableauCardClick : undefined}
+        <PropertySetsView
+          propertySets={self.propertySets}
+          onCardClick={onPropertyCardClick && isMyTurn ? onPropertyCardClick : undefined}
           selectableCardIds={wildIds}
+          flashingCardIds={flashingCardIds}
         />
-        {self.tableau.length === 0 && isMyTurn && (
+        {self.propertySets.length === 0 && isMyTurn && (
           <div className="rounded border border-dashed border-white/20 p-3 text-center text-[11px] opacity-50">
             Drop properties here
           </div>
@@ -1220,7 +1264,7 @@ function CardActionButtons({
             className="h-11 flex-1 min-w-[120px] rounded-md bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
             data-testid="play-wild10-button"
           >
-            Place rainbow
+            Place wild
           </button>
         </>
       );
@@ -1242,7 +1286,7 @@ function CardActionButtons({
                 data-testid="play-action-button"
                 title="Draw 2 extra cards now."
               >
-                Round Trip (+2)
+                Pass Go (+2)
               </button>
               {banks}
             </>,
@@ -1256,13 +1300,13 @@ function CardActionButtons({
                 data-testid="play-action-button"
                 title="Steal one property from an opponent (not in a complete set)."
               >
-                Swipe a property
+                Sly Deal
               </button>
               {banks}
             </>,
           );
         case "forcedDeal": {
-          const myTradable = self.tableau.some((g) => g.cardIds.length < SET_DEFS[g.color].complete);
+          const myTradable = self.propertySets.some((g) => g.cardIds.length < SET_DEFS[g.color].complete);
           return wrap(
             <>
               <button
@@ -1272,7 +1316,7 @@ function CardActionButtons({
                 data-testid="play-action-button"
                 title={myTradable ? "Trade one of your properties for an opponent's." : "Need at least one of your own properties (not in a complete set) to trade."}
               >
-                Tribute (swap)
+                Forced Deal
               </button>
               {banks}
             </>,
@@ -1280,7 +1324,7 @@ function CardActionButtons({
         }
         case "dealBreaker": {
           const anyComplete = state.players.some(
-            (p) => p.id !== selfId && p.tableau.some((g) => g.cardIds.length >= SET_DEFS[g.color].complete),
+            (p) => p.id !== selfId && p.propertySets.some((g) => g.cardIds.length >= SET_DEFS[g.color].complete),
           );
           return wrap(
             <>
@@ -1291,7 +1335,7 @@ function CardActionButtons({
                 data-testid="play-action-button"
                 title={anyComplete ? "Steal a complete set." : "No opponent has a complete set to take."}
               >
-                Hostile Takeover
+                Deal Breaker
               </button>
               {banks}
             </>,
@@ -1306,7 +1350,7 @@ function CardActionButtons({
                 data-testid="play-action-button"
                 title="Force one opponent to pay you $5M."
               >
-                Eviction ($5M)
+                Debt Collector ($5M)
               </button>
               {banks}
             </>,
@@ -1320,13 +1364,13 @@ function CardActionButtons({
                 data-testid="play-action-button"
                 title="Every opponent owes you $2M."
               >
-                Tip Jar ($2M each)
+                It's My Birthday ($2M each)
               </button>
               {banks}
             </>,
           );
         case "house": {
-          const eligible = self.tableau.some(
+          const eligible = self.propertySets.some(
             (g) => STANDARD_COLORS.includes(g.color) && g.cardIds.length >= SET_DEFS[g.color].complete && !g.hasHouse,
           );
           return wrap(
@@ -1338,14 +1382,14 @@ function CardActionButtons({
                 data-testid="play-action-button"
                 title={eligible ? "+$3M rent on a complete standard-color set." : "Need a complete standard-color set without a house yet."}
               >
-                Place House
+                House (+$3M rent)
               </button>
               {banks}
             </>,
           );
         }
         case "hotel": {
-          const eligible = self.tableau.some((g) => g.hasHouse && !g.hasHotel);
+          const eligible = self.propertySets.some((g) => g.hasHouse && !g.hasHotel);
           return wrap(
             <>
               <button
@@ -1355,7 +1399,7 @@ function CardActionButtons({
                 data-testid="play-action-button"
                 title={eligible ? "+$4M rent on a complete set with a house." : "Need a complete set that already has a house."}
               >
-                Place Hotel
+                Hotel (+$4M rent)
               </button>
               {banks}
             </>,
@@ -1365,7 +1409,7 @@ function CardActionButtons({
           const sets = (card.rentSets ?? []) as SetColor[];
           // Filter to colors the player actually owns at least one of, otherwise
           // engine will reject. We still allow click-through for clearer error.
-          const owned = sets.filter((c) => self.tableau.some((g) => g.color === c && g.cardIds.length > 0));
+          const owned = sets.filter((c) => self.propertySets.some((g) => g.color === c && g.cardIds.length > 0));
           const canCharge = owned.length > 0;
           return wrap(
             <>
@@ -1387,7 +1431,7 @@ function CardActionButtons({
                     : `You don't own any ${sets.join(" or ")} property to charge.`
                 }
               >
-                Charge Rent
+                Rent
               </button>
               {banks}
             </>,

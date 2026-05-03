@@ -50,7 +50,7 @@ export function HelpButton() {
                 → end your turn. Hand limit is 7 cards at end of turn.
               </p>
               <p>
-                <strong>Each card</strong> can be played as a property (into your tableau), as money
+                <strong>Each card</strong> can be played as a property (laid down in front of you), as money
                 (banked sideways), or for its action effect. Wilds must join an existing same-color
                 group; rainbow wilds need at least one solid card with them.
               </p>
@@ -73,7 +73,7 @@ export function HelpButton() {
                 <summary className="cursor-pointer font-semibold">Tips</summary>
                 <ul className="mt-2 ml-4 list-disc space-y-1 text-xs">
                   <li>Long-press any card to peek at its full description.</li>
-                  <li>Tap an opponent to see their full tableau and bank.</li>
+                  <li>Tap an opponent to see their full properties and bank.</li>
                   <li>The dot meter next to each name shows how close they are to winning (X/3).</li>
                   <li>The pulsing yellow border on the top banner means it's your turn.</li>
                   <li>"No change given" — paying $5 against a $2 debt loses the difference.</li>

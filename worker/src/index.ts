@@ -260,7 +260,7 @@ export class Room {
           name,
           hand: [],
           bank: [],
-          tableau: [],
+          propertySets: [],
           connected: true,
         });
       });

@@ -136,7 +136,7 @@ type ScenarioPlayer = {
   name: string;
   hand?: CardId[];
   bank?: CardId[];
-  tableau?: { color: SetColor; cardIds: CardId[]; hasHouse?: boolean; hasHotel?: boolean }[];
+  propertySets?: { color: SetColor; cardIds: CardId[]; hasHouse?: boolean; hasHotel?: boolean }[];
 };
 
 function buildState(opts: {
@@ -149,7 +149,7 @@ function buildState(opts: {
   for (const p of opts.players) {
     for (const c of p.hand ?? []) usedCards.add(c);
     for (const c of p.bank ?? []) usedCards.add(c);
-    for (const g of p.tableau ?? []) for (const c of g.cardIds) usedCards.add(c);
+    for (const g of p.propertySets ?? []) for (const c of g.cardIds) usedCards.add(c);
   }
   const drawPile = DECK.map((c) => c.id).filter((id) => !usedCards.has(id));
 
@@ -160,7 +160,7 @@ function buildState(opts: {
       name: p.name,
       hand: p.hand ?? [],
       bank: p.bank ?? [],
-      tableau: (p.tableau ?? []).map((g) => ({
+      propertySets: (p.propertySets ?? []).map((g) => ({
         color: g.color,
         cardIds: g.cardIds,
         hasHouse: g.hasHouse ?? false,
@@ -238,8 +238,8 @@ async function run(): Promise<void> {
     const theirGreen = allCardsOfKind((c) => c.kind === "property" && c.set === "green")[0]!;
     await injectState(code, buildState({
       players: [
-        { id: ALICE, name: "Alice", hand: [fdCard], tableau: [{ color: "red", cardIds: [myRed] }] },
-        { id: BOB, name: "Bob", tableau: [{ color: "green", cardIds: [theirGreen] }] },
+        { id: ALICE, name: "Alice", hand: [fdCard], propertySets: [{ color: "red", cardIds: [myRed] }] },
+        { id: BOB, name: "Bob", propertySets: [{ color: "green", cardIds: [theirGreen] }] },
       ],
     }));
     alice!.send({ type: "action", action: { type: "PLAY_FORCED_DEAL", playerId: ALICE, cardId: fdCard, myCardId: myRed, targetPlayerId: BOB, targetCardId: theirGreen } });
@@ -248,8 +248,8 @@ async function run(): Promise<void> {
     const final = await waitForState(code, (s) => s.pending === null);
     const aliceP = final.players.find((p) => p.id === ALICE)!;
     const bobP = final.players.find((p) => p.id === BOB)!;
-    if (aliceP.tableau.find((g) => g.color === "green")?.cardIds[0] !== theirGreen) throw new Error("Alice missing green");
-    if (bobP.tableau.find((g) => g.color === "red")?.cardIds[0] !== myRed) throw new Error("Bob missing red");
+    if (aliceP.propertySets.find((g) => g.color === "green")?.cardIds[0] !== theirGreen) throw new Error("Alice missing green");
+    if (bobP.propertySets.find((g) => g.color === "red")?.cardIds[0] !== myRed) throw new Error("Bob missing red");
     alice!.close(); bob!.close();
   });
 
@@ -267,7 +267,7 @@ async function run(): Promise<void> {
     await injectState(code, buildState({
       players: [
         { id: ALICE, name: "Alice", hand: [dbCard] },
-        { id: BOB, name: "Bob", tableau: [{ color: "brown", cardIds: browns }] },
+        { id: BOB, name: "Bob", propertySets: [{ color: "brown", cardIds: browns }] },
       ],
     }));
     alice!.send({ type: "action", action: { type: "PLAY_DEAL_BREAKER", playerId: ALICE, cardId: dbCard, targetPlayerId: BOB, targetColor: "brown", targetGroupIdx: 0 } });
@@ -276,8 +276,8 @@ async function run(): Promise<void> {
     const final = await waitForState(code, (s) => s.pending === null);
     const aliceP = final.players.find((p) => p.id === ALICE)!;
     const bobP = final.players.find((p) => p.id === BOB)!;
-    if (bobP.tableau.length !== 0) throw new Error("Bob still has tableau");
-    const stolen = aliceP.tableau.find((g) => g.color === "brown");
+    if (bobP.propertySets.length !== 0) throw new Error("Bob still has properties");
+    const stolen = aliceP.propertySets.find((g) => g.color === "brown");
     if (!stolen || stolen.cardIds.length !== 2) throw new Error("Alice doesn't have full brown set");
     alice!.close(); bob!.close();
   });
@@ -331,7 +331,7 @@ async function run(): Promise<void> {
     const m4 = findCard((c) => c.kind === "money" && c.value === 4);
     await injectState(code, buildState({
       players: [
-        { id: ALICE, name: "Alice", hand: [rentCard], tableau: [{ color: "green", cardIds: greens }] },
+        { id: ALICE, name: "Alice", hand: [rentCard], propertySets: [{ color: "green", cardIds: greens }] },
         { id: BOB, name: "Bob", bank: [m5] },
         { id: CARLA, name: "Carla", bank: [m4] },
       ],
@@ -367,14 +367,14 @@ async function run(): Promise<void> {
     const reds = allCardsOfKind((c) => c.kind === "property" && c.set === "red");
     await injectState(code, buildState({
       players: [
-        { id: ALICE, name: "Alice", hand: [houseCard], tableau: [{ color: "red", cardIds: reds }] },
+        { id: ALICE, name: "Alice", hand: [houseCard], propertySets: [{ color: "red", cardIds: reds }] },
         { id: BOB, name: "Bob" },
       ],
     }));
     alice!.send({ type: "action", action: { type: "PLAY_HOUSE", playerId: ALICE, cardId: houseCard, targetColor: "red" } });
-    const final = await waitForState(code, (s) => s.players[0]!.tableau.some((g) => g.hasHouse));
+    const final = await waitForState(code, (s) => s.players[0]!.propertySets.some((g) => g.hasHouse));
     const aliceP = final.players.find((p) => p.id === ALICE)!;
-    const redGroup = aliceP.tableau.find((g) => g.color === "red");
+    const redGroup = aliceP.propertySets.find((g) => g.color === "red");
     if (!redGroup?.hasHouse) throw new Error("red group missing house");
     alice!.close(); bob!.close();
   });
@@ -393,16 +393,16 @@ async function run(): Promise<void> {
     const reds = allCardsOfKind((c) => c.kind === "property" && c.set === "red");
     await injectState(code, buildState({
       players: [
-        { id: ALICE, name: "Alice", hand: [houseCard, hotelCard], tableau: [{ color: "red", cardIds: reds }] },
+        { id: ALICE, name: "Alice", hand: [houseCard, hotelCard], propertySets: [{ color: "red", cardIds: reds }] },
         { id: BOB, name: "Bob" },
       ],
     }));
     alice!.send({ type: "action", action: { type: "PLAY_HOUSE", playerId: ALICE, cardId: houseCard, targetColor: "red" } });
-    await waitForState(code, (s) => s.players.find((p) => p.id === ALICE)!.tableau.some((g) => g.hasHouse));
+    await waitForState(code, (s) => s.players.find((p) => p.id === ALICE)!.propertySets.some((g) => g.hasHouse));
     alice!.send({ type: "action", action: { type: "PLAY_HOTEL", playerId: ALICE, cardId: hotelCard, targetColor: "red" } });
-    const final = await waitForState(code, (s) => s.players.find((p) => p.id === ALICE)!.tableau.some((g) => g.hasHotel));
+    const final = await waitForState(code, (s) => s.players.find((p) => p.id === ALICE)!.propertySets.some((g) => g.hasHotel));
     const aliceP = final.players.find((p) => p.id === ALICE)!;
-    const redGroup = aliceP.tableau.find((g) => g.color === "red");
+    const redGroup = aliceP.propertySets.find((g) => g.color === "red");
     if (!redGroup?.hasHouse || !redGroup?.hasHotel) throw new Error("missing house+hotel");
     alice!.close(); bob!.close();
   });
@@ -422,7 +422,7 @@ async function run(): Promise<void> {
     await injectState(code, buildState({
       players: [
         { id: ALICE, name: "Alice", hand: [slyCard] },
-        { id: BOB, name: "Bob", hand: [jsnCard], tableau: [{ color: "red", cardIds: [red] }] },
+        { id: BOB, name: "Bob", hand: [jsnCard], propertySets: [{ color: "red", cardIds: [red] }] },
       ],
     }));
     alice!.send({ type: "action", action: { type: "PLAY_SLY_DEAL", playerId: ALICE, cardId: slyCard, targetPlayerId: BOB, targetCardId: red } });
@@ -434,8 +434,8 @@ async function run(): Promise<void> {
     const final = await waitForState(code, (s) => s.pending === null);
     const aliceP = final.players.find((p) => p.id === ALICE)!;
     const bobP = final.players.find((p) => p.id === BOB)!;
-    if (aliceP.tableau.length !== 0) throw new Error("Alice shouldn't have stolen");
-    if (bobP.tableau.find((g) => g.color === "red")?.cardIds[0] !== red) throw new Error("Bob's red gone");
+    if (aliceP.propertySets.length !== 0) throw new Error("Alice shouldn't have stolen");
+    if (bobP.propertySets.find((g) => g.color === "red")?.cardIds[0] !== red) throw new Error("Bob's red gone");
     if (!final.discardPile.includes(jsnCard)) throw new Error("JSN not in discard");
     alice!.close(); bob!.close();
   });
@@ -459,7 +459,7 @@ async function run(): Promise<void> {
           id: ALICE,
           name: "Alice",
           hand: [lastRed],
-          tableau: [
+          propertySets: [
             { color: "brown", cardIds: browns },
             { color: "lightBlue", cardIds: lights },
             { color: "red", cardIds: [reds[0]!, reds[1]!] },
@@ -516,7 +516,7 @@ async function run(): Promise<void> {
     await injectState(code, buildState({
       players: [
         { id: ALICE, name: "Alice", hand: [dcCard] },
-        { id: BOB, name: "Bob", bank: [m2], tableau: [{ color: "red", cardIds: [red] }] },
+        { id: BOB, name: "Bob", bank: [m2], propertySets: [{ color: "red", cardIds: [red] }] },
       ],
     }));
     alice!.send({ type: "action", action: { type: "PLAY_DEBT_COLLECTOR", playerId: ALICE, cardId: dcCard, targetPlayerId: BOB } });
@@ -529,9 +529,9 @@ async function run(): Promise<void> {
     const aliceP = final.players.find((p) => p.id === ALICE)!;
     const bobP = final.players.find((p) => p.id === BOB)!;
     if (!aliceP.bank.includes(m2)) throw new Error("Alice missing $2M");
-    if (aliceP.tableau.find((g) => g.color === "red")?.cardIds[0] !== red) throw new Error("Alice missing red");
+    if (aliceP.propertySets.find((g) => g.color === "red")?.cardIds[0] !== red) throw new Error("Alice missing red");
     if (bobP.bank.length !== 0) throw new Error("Bob bank not empty");
-    if (bobP.tableau.length !== 0) throw new Error("Bob tableau not empty");
+    if (bobP.propertySets.length !== 0) throw new Error("Bob properties not empty");
     alice!.close(); bob!.close();
   });
 
@@ -581,7 +581,7 @@ async function run(): Promise<void> {
         {
           id: ALICE,
           name: "Alice",
-          tableau: [{ color: "orange", cardIds: [orangePinkWild] }],
+          propertySets: [{ color: "orange", cardIds: [orangePinkWild] }],
         },
         { id: BOB, name: "Bob" },
       ],
@@ -599,10 +599,10 @@ async function run(): Promise<void> {
     });
     const final = await waitForState(code, (s) => {
       const a = s.players.find((p) => p.id === ALICE)!;
-      return a.tableau.some((g) => g.color === "pink" && g.cardIds.includes(orangePinkWild));
+      return a.propertySets.some((g) => g.color === "pink" && g.cardIds.includes(orangePinkWild));
     });
     const aliceP = final.players.find((p) => p.id === ALICE)!;
-    if (aliceP.tableau.find((g) => g.color === "orange") !== undefined) {
+    if (aliceP.propertySets.find((g) => g.color === "orange") !== undefined) {
       throw new Error("orange group should be empty after reassign");
     }
     if (final.playsRemaining !== 0) {
@@ -625,7 +625,7 @@ async function run(): Promise<void> {
         {
           id: ALICE,
           name: "Alice",
-          tableau: [{ color: "orange", cardIds: [orangePinkWild] }],
+          propertySets: [{ color: "orange", cardIds: [orangePinkWild] }],
         },
         { id: BOB, name: "Bob" },
       ],
@@ -643,7 +643,7 @@ async function run(): Promise<void> {
     });
     const final = await waitForState(code, (s) => {
       const a = s.players.find((p) => p.id === ALICE)!;
-      return a.tableau.some((g) => g.color === "pink" && g.cardIds.includes(orangePinkWild));
+      return a.propertySets.some((g) => g.color === "pink" && g.cardIds.includes(orangePinkWild));
     });
     if (final.playsRemaining !== 3) {
       throw new Error(`playsRemaining should stay at 3 (free), got ${final.playsRemaining}`);

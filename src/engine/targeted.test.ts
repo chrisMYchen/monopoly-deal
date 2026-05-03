@@ -32,9 +32,9 @@ function injectHand(state: GameState, playerId: string, cardIds: CardId[]): Game
   };
 }
 
-// Inject a fully-built tableau group (skipping the play flow). Used to set up
+// Inject a fully-built property set (skipping the play flow). Used to set up
 // scenarios that need pre-existing properties to test action targeting.
-function injectTableau(
+function injectPropertySets(
   state: GameState,
   playerId: string,
   groups: { color: SetColor; cardIds: CardId[]; hasHouse?: boolean; hasHotel?: boolean }[],
@@ -45,7 +45,7 @@ function injectTableau(
       if (p.id !== playerId) return p;
       return {
         ...p,
-        tableau: groups.map((g) => ({
+        propertySets: groups.map((g) => ({
           color: g.color,
           cardIds: g.cardIds,
           hasHouse: g.hasHouse ?? false,
@@ -92,7 +92,7 @@ describe("PLAY_SLY_DEAL", () => {
     const slyCard = findCard((c) => c.kind === "action" && c.action === "slyDeal");
     const red = findCard((c) => c.kind === "property" && c.set === "red");
     s = injectHand(s, "p1", [slyCard]);
-    s = injectTableau(s, "p2", [{ color: "red", cardIds: [red] }]);
+    s = injectPropertySets(s, "p2", [{ color: "red", cardIds: [red] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_SLY_DEAL",
@@ -105,8 +105,8 @@ describe("PLAY_SLY_DEAL", () => {
     expect(s.pending?.kind).toBe("awaitJustSayNo");
     s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
     expect(s.pending).toBeNull();
-    expect(getPlayer(s, "p2").tableau.length).toBe(0);
-    expect(getPlayer(s, "p1").tableau[0]?.cardIds).toEqual([red]);
+    expect(getPlayer(s, "p2").propertySets.length).toBe(0);
+    expect(getPlayer(s, "p1").propertySets[0]?.cardIds).toEqual([red]);
     expect(s.discardPile).toContain(slyCard);
     expect(s.playsRemaining).toBe(2);
   });
@@ -118,7 +118,7 @@ describe("PLAY_SLY_DEAL", () => {
     const red = findCard((c) => c.kind === "property" && c.set === "red");
     s = injectHand(s, "p1", [slyCard]);
     s = injectHand(s, "p2", [jsn]);
-    s = injectTableau(s, "p2", [{ color: "red", cardIds: [red] }]);
+    s = injectPropertySets(s, "p2", [{ color: "red", cardIds: [red] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_SLY_DEAL",
@@ -132,8 +132,8 @@ describe("PLAY_SLY_DEAL", () => {
     s = applyAction(s, { type: "RESPOND_JSN", playerId: "p1", play: false });
     expect(s.pending).toBeNull();
     // Property stays with p2.
-    expect(getPlayer(s, "p2").tableau[0]?.cardIds).toEqual([red]);
-    expect(getPlayer(s, "p1").tableau.length).toBe(0);
+    expect(getPlayer(s, "p2").propertySets[0]?.cardIds).toEqual([red]);
+    expect(getPlayer(s, "p1").propertySets.length).toBe(0);
     expect(s.discardPile).toContain(jsn);
     expect(s.discardPile).toContain(slyCard);
   });
@@ -145,7 +145,7 @@ describe("PLAY_SLY_DEAL", () => {
     const red = findCard((c) => c.kind === "property" && c.set === "red");
     s = injectHand(s, "p1", [slyCard, jsns[0]!]);
     s = injectHand(s, "p2", [jsns[1]!]);
-    s = injectTableau(s, "p2", [{ color: "red", cardIds: [red] }]);
+    s = injectPropertySets(s, "p2", [{ color: "red", cardIds: [red] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_SLY_DEAL",
@@ -160,7 +160,7 @@ describe("PLAY_SLY_DEAL", () => {
     s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
     expect(s.pending).toBeNull();
     // Property stolen to p1 (jsnStack length = 2 = even, action proceeds).
-    expect(getPlayer(s, "p1").tableau[0]?.cardIds).toEqual([red]);
+    expect(getPlayer(s, "p1").propertySets[0]?.cardIds).toEqual([red]);
   });
 
   it("rejects sly-dealing a complete set", () => {
@@ -168,7 +168,7 @@ describe("PLAY_SLY_DEAL", () => {
     const slyCard = findCard((c) => c.kind === "action" && c.action === "slyDeal");
     const browns = allOf((c) => c.kind === "property" && c.set === "brown"); // 2 = complete
     s = injectHand(s, "p1", [slyCard]);
-    s = injectTableau(s, "p2", [{ color: "brown", cardIds: browns }]);
+    s = injectPropertySets(s, "p2", [{ color: "brown", cardIds: browns }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     expect(() =>
       applyAction(s, {
@@ -193,8 +193,8 @@ describe("PLAY_FORCED_DEAL", () => {
     const myRed = allOf((c) => c.kind === "property" && c.set === "red")[0]!;
     const theirGreen = allOf((c) => c.kind === "property" && c.set === "green")[0]!;
     s = injectHand(s, "p1", [fdCard]);
-    s = injectTableau(s, "p1", [{ color: "red", cardIds: [myRed] }]);
-    s = injectTableau(s, "p2", [{ color: "green", cardIds: [theirGreen] }]);
+    s = injectPropertySets(s, "p1", [{ color: "red", cardIds: [myRed] }]);
+    s = injectPropertySets(s, "p2", [{ color: "green", cardIds: [theirGreen] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_FORCED_DEAL",
@@ -207,8 +207,8 @@ describe("PLAY_FORCED_DEAL", () => {
     s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
     const p1 = getPlayer(s, "p1");
     const p2 = getPlayer(s, "p2");
-    expect(p1.tableau.find((g) => g.color === "green")?.cardIds).toEqual([theirGreen]);
-    expect(p2.tableau.find((g) => g.color === "red")?.cardIds).toEqual([myRed]);
+    expect(p1.propertySets.find((g) => g.color === "green")?.cardIds).toEqual([theirGreen]);
+    expect(p2.propertySets.find((g) => g.color === "red")?.cardIds).toEqual([myRed]);
   });
 });
 
@@ -222,7 +222,7 @@ describe("PLAY_DEAL_BREAKER", () => {
     const dbCard = findCard((c) => c.kind === "action" && c.action === "dealBreaker");
     const browns = allOf((c) => c.kind === "property" && c.set === "brown"); // 2 = complete
     s = injectHand(s, "p1", [dbCard]);
-    s = injectTableau(s, "p2", [{ color: "brown", cardIds: browns }]);
+    s = injectPropertySets(s, "p2", [{ color: "brown", cardIds: browns }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_DEAL_BREAKER",
@@ -233,8 +233,8 @@ describe("PLAY_DEAL_BREAKER", () => {
       targetGroupIdx: 0,
     });
     s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
-    expect(getPlayer(s, "p2").tableau).toEqual([]);
-    expect(getPlayer(s, "p1").tableau[0]?.cardIds).toEqual(browns);
+    expect(getPlayer(s, "p2").propertySets).toEqual([]);
+    expect(getPlayer(s, "p1").propertySets[0]?.cardIds).toEqual(browns);
   });
 
   it("rejects targeting an incomplete set", () => {
@@ -242,7 +242,7 @@ describe("PLAY_DEAL_BREAKER", () => {
     const dbCard = findCard((c) => c.kind === "action" && c.action === "dealBreaker");
     const browns = allOf((c) => c.kind === "property" && c.set === "brown");
     s = injectHand(s, "p1", [dbCard]);
-    s = injectTableau(s, "p2", [{ color: "brown", cardIds: [browns[0]!] }]);
+    s = injectPropertySets(s, "p2", [{ color: "brown", cardIds: [browns[0]!] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     expect(() =>
       applyAction(s, {
@@ -267,7 +267,7 @@ describe("PLAY_DEAL_BREAKER", () => {
     );
     const overcomplete = [...oranges, ...orangeWilds]; // 5 cards, complete=3
     s = injectHand(s, "p1", [dbCard]);
-    s = injectTableau(s, "p2", [{ color: "orange", cardIds: overcomplete }]);
+    s = injectPropertySets(s, "p2", [{ color: "orange", cardIds: overcomplete }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_DEAL_BREAKER",
@@ -278,8 +278,8 @@ describe("PLAY_DEAL_BREAKER", () => {
       targetGroupIdx: 0,
     });
     s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
-    expect(getPlayer(s, "p2").tableau).toEqual([]);
-    const stolen = getPlayer(s, "p1").tableau;
+    expect(getPlayer(s, "p2").propertySets).toEqual([]);
+    const stolen = getPlayer(s, "p1").propertySets;
     expect(stolen.length).toBe(1);
     expect(stolen[0]!.color).toBe("orange");
     expect(stolen[0]!.cardIds.length).toBe(5);
@@ -339,7 +339,7 @@ describe("PLAY_DEBT_COLLECTOR + PAY", () => {
     const m2 = findCard((c) => c.kind === "money" && c.value === 2);
     s = injectHand(s, "p1", [dcCard]);
     s = injectBank(s, "p2", [m2]);
-    s = injectTableau(s, "p2", [{ color: "red", cardIds: [red] }]);
+    s = injectPropertySets(s, "p2", [{ color: "red", cardIds: [red] }]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
       type: "PLAY_DEBT_COLLECTOR",
@@ -351,9 +351,9 @@ describe("PLAY_DEBT_COLLECTOR + PAY", () => {
     s = applyAction(s, { type: "PAY", playerId: "p2", cardIds: [m2, red] });
     expect(s.pending).toBeNull();
     expect(getPlayer(s, "p1").bank).toContain(m2);
-    expect(getPlayer(s, "p1").tableau.find((g) => g.color === "red")?.cardIds).toEqual([red]);
+    expect(getPlayer(s, "p1").propertySets.find((g) => g.color === "red")?.cardIds).toEqual([red]);
     expect(getPlayer(s, "p2").bank).toEqual([]);
-    expect(getPlayer(s, "p2").tableau).toEqual([]);
+    expect(getPlayer(s, "p2").propertySets).toEqual([]);
   });
 });
 
@@ -404,7 +404,7 @@ describe("PLAY_RENT", () => {
     const m5 = findCard((c) => c.kind === "money" && c.value === 5);
     const m4 = findCard((c) => c.kind === "money" && c.value === 4);
     s = injectHand(s, "p1", [rentCard]);
-    s = injectTableau(s, "p1", [{ color: "red", cardIds: reds }]);
+    s = injectPropertySets(s, "p1", [{ color: "red", cardIds: reds }]);
     s = injectBank(s, "p2", [m5]);
     s = injectBank(s, "p3", [m4]);
     expect(rentFor(getPlayer(s, "p1"), "red")).toBe(6);
@@ -433,7 +433,7 @@ describe("PLAY_RENT", () => {
     );
     const m4 = findCard((c) => c.kind === "money" && c.value === 4);
     s = injectHand(s, "p1", [wildRent]);
-    s = injectTableau(s, "p1", [{ color: "green", cardIds: greens }]);
+    s = injectPropertySets(s, "p1", [{ color: "green", cardIds: greens }]);
     s = injectBank(s, "p3", [m4]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, {
@@ -466,7 +466,7 @@ describe("PLAY_RENT", () => {
     const doubleCard = findCard((c) => c.kind === "action" && c.action === "doubleRent");
     const m10 = findCard((c) => c.kind === "money" && c.value === 10);
     s = injectHand(s, "p1", [rentCard, doubleCard]);
-    s = injectTableau(s, "p1", [{ color: "green", cardIds: greens }]);
+    s = injectPropertySets(s, "p1", [{ color: "green", cardIds: greens }]);
     s = injectBank(s, "p2", [m10]);
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     const beforePlays = s.playsRemaining;

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 
-import { TableauView } from "./TableauView";
+import { PropertySetsView } from "./PropertySetsView";
 import { CardBack, Card } from "./Card";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { SetProgress } from "./SetProgress";
@@ -12,7 +12,7 @@ import { SET_DEFS, bankValueOf, cardById, type SetColor } from "@/engine/cards";
 import { distinctCompletedSets } from "@/engine/selectors";
 import { colorForPlayerId } from "@/lib/playerColor";
 
-// On desktop we render a rich opponent block (full tableau visible). On mobile
+// On desktop we render a rich opponent block (full properties visible). On mobile
 // we collapse to a tight horizontal row with name + hand count + bank total +
 // color-coded set "chips" so the player can see at a glance:
 //   - who's active
@@ -25,14 +25,18 @@ export function OpponentStrip({
   currentTurnPlayerId,
   onTargetClick,
   targetMode,
+  flashingCardIds,
 }: {
   opponents: ProjectedPlayer[];
   currentTurnPlayerId: string;
   onTargetClick?: (playerId: string) => void;
   targetMode?: boolean;
+  // Cards that should pulse to highlight a recent swap. Forwarded into the
+  // per-opponent PropertySetsView so a stolen/given property is unmistakable.
+  flashingCardIds?: Set<string>;
 }) {
   // Track which opponent (if any) the user has tapped to expand on mobile.
-  // On desktop the full tableau is always visible so this is a no-op.
+  // On desktop the full property area is always visible so this is a no-op.
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
@@ -87,26 +91,31 @@ export function OpponentStrip({
 
               {/* Mobile: compact set chips. Tap card to expand. */}
               <div className="flex flex-wrap gap-1 sm:hidden">
-                {p.tableau.length === 0 ? (
+                {p.propertySets.length === 0 ? (
                   <span className="text-[10px] opacity-50">no properties</span>
                 ) : (
-                  p.tableau.map((g, gi) => (
+                  p.propertySets.map((g, gi) => (
                     <SetChip key={`${g.color}-${gi}`} color={g.color} count={g.cardIds.length} hasHouse={g.hasHouse} hasHotel={g.hasHotel} />
                   ))
                 )}
-                {p.tableau.length > 0 && (
+                {p.propertySets.length > 0 && (
                   <span className="text-[10px] opacity-50">tap to view</span>
                 )}
               </div>
 
-              {/* Desktop: full tableau view with property cards. */}
+              {/* Desktop: full property view with property cards. */}
               <div className="hidden sm:block">
                 <div className="flex items-center gap-2 text-xs opacity-80">
                   <CardBack size="sm" count={p.handCount} />
                   <span className="font-mono">${bankTotal}M</span>
                 </div>
                 <div className="mt-2">
-                  <TableauView tableau={p.tableau} compact onCardClick={undefined} />
+                  <PropertySetsView
+                    propertySets={p.propertySets}
+                    compact
+                    onCardClick={undefined}
+                    flashingCardIds={flashingCardIds}
+                  />
                 </div>
               </div>
             </OpponentChip>
@@ -119,6 +128,7 @@ export function OpponentStrip({
         <OpponentDetailSheet
           opponent={opponents.find((p) => p.id === expandedId)!}
           onClose={() => setExpandedId(null)}
+          flashingCardIds={flashingCardIds}
         />
       )}
     </>
@@ -178,7 +188,7 @@ function OpponentChip({
 }
 
 // Tiny chip showing a color group's status. Used on mobile where a full
-// TableauView would dominate vertical space.
+// PropertySetsView would dominate vertical space.
 function SetChip({
   color,
   count,
@@ -214,14 +224,16 @@ function SetChip({
 }
 
 // Bottom sheet shown when a mobile player taps an opponent chip. Surfaces the
-// full tableau and bank so they can plan a Sly Deal / Forced Deal / Deal
+// full properties and bank so they can plan a Sly Deal / Forced Deal / Deal
 // Breaker without scrolling away from the main play area.
 function OpponentDetailSheet({
   opponent,
   onClose,
+  flashingCardIds,
 }: {
   opponent: ProjectedPlayer;
   onClose: () => void;
+  flashingCardIds?: Set<string>;
 }) {
   const bankTotal = opponent.bank.reduce((s, cid) => s + bankValueOf(cardById(cid)), 0);
   return (
@@ -252,11 +264,11 @@ function OpponentDetailSheet({
           🂠 {opponent.handCount} cards in hand · Bank ${bankTotal}M
         </div>
         <section className="mb-3">
-          <h4 className="mb-1 text-xs uppercase tracking-widest opacity-60">Tableau</h4>
-          {opponent.tableau.length === 0 ? (
+          <h4 className="mb-1 text-xs uppercase tracking-widest opacity-60">Properties</h4>
+          {opponent.propertySets.length === 0 ? (
             <div className="text-xs opacity-50">no properties</div>
           ) : (
-            <TableauView tableau={opponent.tableau} compact />
+            <PropertySetsView propertySets={opponent.propertySets} compact flashingCardIds={flashingCardIds} />
           )}
         </section>
         {opponent.bank.length > 0 && (

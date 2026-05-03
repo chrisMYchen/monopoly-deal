@@ -2,11 +2,11 @@ import type { CardId, SetColor } from "./cards";
 
 export type PlayerId = string;
 
-// One color group in a player's tableau. Houses/Hotels attach to standard-color
+// One color group in a player's properties. Houses/Hotels attach to standard-color
 // sets only (not RR/Util) and only when the set is complete; rent calculation
 // reads them. If the set is later broken, House/Hotel detach (handled in the
 // reducer per the deterministic policy in plan §"Open verification items").
-export type TableauGroup = {
+export type PropertySet = {
   color: SetColor;
   // Card ids in the group. Wilds are tracked here, with their currently-assigned
   // color matching `color`. A wild's *underlying* card id stays the same; the
@@ -21,13 +21,25 @@ export type Player = {
   name: string;
   hand: CardId[];
   bank: CardId[]; // money + action-as-money (face-up sideways)
-  tableau: TableauGroup[];
+  propertySets: PropertySet[];
   connected: boolean;
 };
 
 export type LogEntry = {
   at: number; // turn index for ordering
   message: string;
+  // Optional structured payload. Most entries are pure text; events that
+  // benefit from rich UI rendering (color chips, mini cards) and client-side
+  // animation cues attach a typed payload here. Today only Forced Deal uses
+  // it — the renderer falls back to `message` when absent.
+  swap?: {
+    sourceId: PlayerId;
+    targetId: PlayerId;
+    gaveCardId: CardId; // card the source GAVE to the target
+    tookCardId: CardId; // card the source TOOK from the target
+    gaveFromColor: SetColor; // group color the gave card lived in (helps wilds)
+    tookFromColor: SetColor; // group color the took card lived in (helps wilds)
+  };
 };
 
 // What the action would do if the JSN window resolves in favor of the source.
@@ -138,14 +150,14 @@ export type GameState = {
   settings: RoomSettings;
 };
 
-export function emptyTableau(): TableauGroup[] {
+export function emptyPropertySets(): PropertySet[] {
   return [];
 }
 
-export function findGroup(player: Player, color: SetColor): TableauGroup | undefined {
-  return player.tableau.find((g) => g.color === color);
+export function findGroup(player: Player, color: SetColor): PropertySet | undefined {
+  return player.propertySets.find((g) => g.color === color);
 }
 
 export function findGroupIndex(player: Player, color: SetColor): number {
-  return player.tableau.findIndex((g) => g.color === color);
+  return player.propertySets.findIndex((g) => g.color === color);
 }
