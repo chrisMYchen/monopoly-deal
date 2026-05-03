@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { PlayerAvatar } from "./PlayerAvatar";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useGame } from "@/lib/gameStore";
 import { colorForPlayerId } from "@/lib/playerColor";
 
@@ -11,7 +12,7 @@ export function Lobby({ onStart }: { onStart: () => void }) {
   const isHost = useGame((s) => s.isHost);
   const selfId = useGame((s) => s.selfId);
   const roomCode = useGame((s) => s.roomCode);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<null | "code" | "link">(null);
 
   if (!state) return null;
   const players = state.players;
@@ -33,36 +34,36 @@ export function Lobby({ onStart }: { onStart: () => void }) {
     typeof window !== "undefined" ? `${window.location.origin}/r/?code=${roomCode}` : "";
 
   async function copyCode() {
-    try {
-      await navigator.clipboard.writeText(roomCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      // ignore
+    const ok = await copyToClipboard(roomCode);
+    if (ok) {
+      setCopied("code");
+      setTimeout(() => setCopied(null), 1600);
+    }
+  }
+
+  async function copyLink() {
+    const ok = await copyToClipboard(shareUrl);
+    if (ok) {
+      setCopied("link");
+      setTimeout(() => setCopied(null), 1600);
     }
   }
 
   async function shareLink() {
-    if (typeof navigator !== "undefined" && (navigator as Navigator & { share?: (data: ShareData) => Promise<void> }).share) {
+    const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
+    if (typeof navigator !== "undefined" && nav.share) {
       try {
-        await (navigator as Navigator & { share: (data: ShareData) => Promise<void> }).share({
+        await nav.share({
           title: "Monopoly Deal",
           text: `Join my game: code ${roomCode}`,
           url: shareUrl,
         });
+        return;
       } catch {
-        // user canceled — silent
-      }
-    } else {
-      // Fallback: copy the link.
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1600);
-      } catch {
-        // ignore
+        // user canceled or share failed — fall through to copy
       }
     }
+    await copyLink();
   }
 
   return (
@@ -78,10 +79,17 @@ export function Lobby({ onStart }: { onStart: () => void }) {
         >
           {roomCode}
           <span className="font-sans text-xs uppercase tracking-widest opacity-60">
-            {copied ? "copied!" : "copy"}
+            {copied === "code" ? "copied!" : "copy"}
           </span>
         </button>
-        <div className="mt-2">
+        <div className="mt-2 flex justify-center gap-2">
+          <button
+            onClick={copyLink}
+            className="rounded-md border border-white/15 px-3 py-1 text-xs uppercase tracking-widest opacity-80 hover:bg-white/5"
+            data-testid="copy-link"
+          >
+            {copied === "link" ? "copied!" : "Copy link"}
+          </button>
           <button
             onClick={shareLink}
             className="rounded-md border border-white/15 px-3 py-1 text-xs uppercase tracking-widest opacity-80 hover:bg-white/5"

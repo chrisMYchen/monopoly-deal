@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getWorkerOrigin } from "@/lib/config";
-import { getOrCreateSessionId, getStoredName } from "@/lib/identity";
+import { getOrCreateSessionId, getStoredName, setStoredName } from "@/lib/identity";
 import { useGame } from "@/lib/gameStore";
 import { connectRoom, type WsClient } from "@/lib/wsClient";
 
@@ -23,9 +23,25 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
 
   const wsRef = useRef<WsClient | null>(null);
 
+  // Joiners arriving via a shared link won't have a name stored yet — gate the
+  // WS connection on a name being set so they can pick how they appear in the
+  // lobby. Hosts who came through the home page already have a stored name and
+  // skip this step.
+  const [name, setName] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+
   useEffect(() => {
+    const stored = getStoredName().trim();
+    if (stored) {
+      setName(stored);
+    } else {
+      setDraftName("");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!name) return;
     const sessionId = getOrCreateSessionId();
-    const name = getStoredName() || "Player";
     setConnection("connecting");
     const client = connectRoom({
       workerOrigin: getWorkerOrigin(),
@@ -49,7 +65,52 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
       reset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomCode]);
+  }, [roomCode, name]);
+
+  if (!name) {
+    const trimmed = draftName.trim();
+    const submit = () => {
+      if (!trimmed) return;
+      setStoredName(trimmed);
+      setName(trimmed);
+    };
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-6 p-6 text-center">
+        <header>
+          <p className="text-sm uppercase tracking-widest opacity-60">Joining room</p>
+          <p className="mt-1 font-mono text-3xl tracking-[0.4em]">{roomCode}</p>
+        </header>
+        <form
+          className="flex w-full flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <label className="flex flex-col gap-1 text-left text-sm opacity-90">
+            Your name
+            <input
+              autoFocus
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              placeholder="Player"
+              maxLength={24}
+              className="h-11 rounded-md border border-white/20 bg-white/5 px-3 text-base outline-none focus:border-white/60"
+              data-testid="join-name-input"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={!trimmed}
+            className="h-11 rounded-md bg-white/90 px-4 font-semibold text-zinc-900 transition hover:bg-white disabled:opacity-50"
+            data-testid="join-submit"
+          >
+            Join game
+          </button>
+        </form>
+      </main>
+    );
+  }
 
   if (!state) {
     return (
