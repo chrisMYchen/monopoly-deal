@@ -57,16 +57,16 @@ export function HelpButton() {
               <details>
                 <summary className="cursor-pointer font-semibold">Action cards</summary>
                 <ul className="mt-2 ml-4 list-disc space-y-1 text-xs">
-                  <li><strong>Swipe</strong>: steal one property (not in a complete set).</li>
-                  <li><strong>Tribute</strong>: trade one of your properties for one of theirs.</li>
-                  <li><strong>Hostile Takeover</strong>: steal a complete set.</li>
-                  <li><strong>Eviction</strong>: force one opponent to pay $5M.</li>
-                  <li><strong>Tip Jar</strong>: every opponent owes you $2M.</li>
+                  <li><strong>Sly Deal</strong>: steal one property (not in a complete set).</li>
+                  <li><strong>Forced Deal</strong>: trade one of your properties for one of theirs.</li>
+                  <li><strong>Deal Breaker</strong>: steal a complete set.</li>
+                  <li><strong>Debt Collector</strong>: force one opponent to pay $5M.</li>
+                  <li><strong>It's My Birthday</strong>: every opponent owes you $2M.</li>
                   <li><strong>Rent</strong>: charge rent on your color. ★ wild charges one opponent.</li>
-                  <li><strong>Doubler</strong>: must be played with a Rent card. Counts as 2 plays.</li>
+                  <li><strong>Double The Rent</strong>: must be played with a Rent card. Counts as 2 plays.</li>
                   <li><strong>House / Hotel</strong>: +$3M / +$4M to a complete set's rent.</li>
-                  <li><strong>Round Trip</strong>: draw 2 extra cards.</li>
-                  <li><strong>Counter</strong>: cancel any action targeting you.</li>
+                  <li><strong>Pass Go</strong>: draw 2 extra cards.</li>
+                  <li><strong>Just Say No</strong>: cancel any action targeting you.</li>
                 </ul>
               </details>
               <details>

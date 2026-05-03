@@ -46,17 +46,17 @@ export default function Home() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-8 p-6 text-center">
       {/* Decorative card stack — pure CSS, no assets. */}
-      <div aria-hidden className="relative mb-2 h-24 w-32">
-        <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[-8deg] rounded-md border border-amber-900 bg-gradient-to-br from-amber-700 to-amber-900 shadow-2xl" />
-        <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[3deg] rounded-md border border-amber-900 bg-gradient-to-br from-amber-700 to-amber-900 shadow-2xl" />
-        <div className="absolute left-1/2 top-1/2 flex h-full w-full -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-md border border-amber-900 bg-gradient-to-br from-amber-600 to-amber-800 shadow-2xl">
-          <div className="text-xs font-bold uppercase tracking-widest text-amber-100">Realty</div>
-          <div className="text-[10px] text-amber-100/70">Royale</div>
+      <div aria-hidden className="relative mb-2 h-28 w-36">
+        <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[-8deg] rounded-md border border-red-900 bg-gradient-to-br from-red-600 to-red-800 shadow-2xl" />
+        <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[3deg] rounded-md border border-red-900 bg-gradient-to-br from-red-600 to-red-800 shadow-2xl" />
+        <div className="absolute left-1/2 top-1/2 flex h-full w-full -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-md border border-red-900 bg-gradient-to-br from-red-500 to-red-700 shadow-2xl">
+          <div className="font-display text-lg uppercase leading-none tracking-tight text-white drop-shadow">Monopoly</div>
+          <div className="mt-1 font-display text-[11px] uppercase leading-none tracking-[0.35em] text-white/85">Deal</div>
         </div>
       </div>
 
       <header>
-        <h1 className="text-5xl font-bold tracking-tight">Realty Royale</h1>
+        <h1 className="font-display text-5xl uppercase tracking-tight text-red-100">Monopoly Deal</h1>
         <p className="mt-2 text-base opacity-70">
           A friendly card game of property and ruthless trades.
         </p>

@@ -46,7 +46,7 @@ export function Lobby({ onStart }: { onStart: () => void }) {
     if (typeof navigator !== "undefined" && (navigator as Navigator & { share?: (data: ShareData) => Promise<void> }).share) {
       try {
         await (navigator as Navigator & { share: (data: ShareData) => Promise<void> }).share({
-          title: "Realty Royale",
+          title: "Monopoly Deal",
           text: `Join my game: code ${roomCode}`,
           url: shareUrl,
         });

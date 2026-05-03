@@ -15,19 +15,37 @@
   --color-set-dark-blue: #2848a0;
   --color-set-railroad: #1a1a1a;
   --color-set-utility: #c0d048;
+
+  /* Per-action card backgrounds. Tuned to feel close to the canonical
+     Monopoly Deal action faces: warm, saturated, with strong contrast against
+     the bold white title block. */
+  --color-action-deal-breaker: #f5b400;
+  --color-action-just-say-no: #d93030;
+  --color-action-sly-deal: #2a89c5;
+  --color-action-forced-deal: #6e3eb0;
+  --color-action-debt-collector: #1d8a4a;
+  --color-action-birthday: #e8579b;
+  --color-action-double-rent: #1a1a1a;
+  --color-action-house: #2f9e57;
+  --color-action-hotel: #d93030;
+  --color-action-pass-go: #d93030;
+  --color-action-rent: #d4a017;
+
+  --font-display: "Bowlby One", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 html,
 body {
   height: 100%;
   color: white;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
 }
 
 body {

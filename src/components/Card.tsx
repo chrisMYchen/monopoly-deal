@@ -2,26 +2,13 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  ArrowsLeftRight,
-  Cake,
-  Compass,
-  CurrencyDollar,
-  HandGrabbing,
-  House,
-  Buildings,
-  Receipt,
-  Shield,
-  Sparkle,
-  Hand,
-} from "@phosphor-icons/react";
 
+import { ACTION_ART, ACTION_THEME } from "./card-art";
 import {
   ACTION_DESCRIPTIONS,
   ACTION_LABELS,
   SET_DEFS,
   cardById,
-  type ActionKind,
   type Card as CardData,
   type CardId,
   type SetColor,
@@ -38,6 +25,34 @@ const SET_BG: Record<SetColor, string> = {
   darkBlue: "bg-[var(--color-set-dark-blue)]",
   railroad: "bg-[var(--color-set-railroad)]",
   utility: "bg-[var(--color-set-utility)]",
+};
+
+// Display label per color group, shown on the property card's color band.
+const SET_LABEL: Record<SetColor, string> = {
+  brown: "Brown",
+  lightBlue: "Light Blue",
+  pink: "Pink",
+  orange: "Orange",
+  red: "Red",
+  yellow: "Yellow",
+  green: "Green",
+  darkBlue: "Dark Blue",
+  railroad: "Railroad",
+  utility: "Utility",
+};
+
+// Whether the color band is dark enough that we should overlay light text on it.
+const SET_BAND_INK: Record<SetColor, string> = {
+  brown: "text-white",
+  lightBlue: "text-zinc-900",
+  pink: "text-white",
+  orange: "text-white",
+  red: "text-white",
+  yellow: "text-zinc-900",
+  green: "text-white",
+  darkBlue: "text-white",
+  railroad: "text-white",
+  utility: "text-zinc-900",
 };
 
 export type CardSize = "sm" | "md" | "lg";
@@ -83,7 +98,6 @@ export function Card({
 
   // Inspector: right-click (desktop) or long-press (touch) opens a popover
   // with the card's full mechanic description, without committing a play.
-  // Keeps beginners learning while not wasting screen real estate by default.
   const onContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     setPeeking((p) => !p);
@@ -138,7 +152,7 @@ export function Card({
           className={className}
           transition={{ type: "spring", stiffness: 380, damping: 32 }}
         >
-          {renderCard(card)}
+          {renderCard(card, size)}
         </motion.button>
         {tooltip}
       </div>
@@ -158,7 +172,7 @@ export function Card({
         data-card-kind={card.kind}
         className={className}
       >
-        {renderCard(card)}
+        {renderCard(card, size)}
       </button>
       {tooltip}
     </div>
@@ -171,141 +185,251 @@ function describeCard(card: CardData): string {
     case "money":
       return `Money. Banked face-up for $${card.value}M.`;
     case "property":
-      return `${card.set} property, $${card.value}M when banked. Rent ladder: ${SET_DEFS[card.set].rentLadder.join(" / ")}.`;
+      return `${SET_LABEL[card.set]} property, $${card.value}M when banked. Rent ladder: ${SET_DEFS[card.set].rentLadder.join(" / ")}.`;
     case "wild2":
-      return `Wild — joins ${card.sets[0]} or ${card.sets[1]} groups. Cannot be banked.`;
+      return `Property Wild Card — joins ${SET_LABEL[card.sets[0]]} or ${SET_LABEL[card.sets[1]]} groups. Cannot be banked.`;
     case "wild10":
-      return "Rainbow wild — joins any color, but must attach to a same-color group already in play. Cannot be banked.";
+      return "Multicolor Property Wild — joins any color group already in play. Cannot be banked.";
     case "action":
       return `${ACTION_DESCRIPTIONS[card.action]} Banked sideways for $${card.value}M.`;
   }
 }
 
-function renderCard(card: CardData) {
+function renderCard(card: CardData, size: CardSize) {
   switch (card.kind) {
     case "money":
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center bg-emerald-100 font-mono text-emerald-900">
-          <div className="text-[1.2em]">${card.value}M</div>
-          <div className="mt-1 text-[0.65em] uppercase tracking-widest opacity-60">Bank</div>
-        </div>
-      );
-
+      return <MoneyFace value={card.value} />;
     case "property":
-      return (
-        <>
-          <div className={`${SET_BG[card.set]} h-2/5 w-full`} />
-          <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
-            <div className="font-semibold leading-tight">{card.name}</div>
-            <div className="mt-1 font-mono opacity-60">${card.value}M</div>
-            <div className="mt-1 font-mono text-[0.7em] opacity-50">
-              {SET_DEFS[card.set].rentLadder.join(" · ")}
-            </div>
-          </div>
-        </>
-      );
-
+      return <PropertyFace card={card} size={size} />;
     case "wild2":
-      return (
-        <>
-          <div className="grid h-2/5 w-full grid-cols-2">
-            <div className={`${SET_BG[card.sets[0]]}`} />
-            <div className={`${SET_BG[card.sets[1]]}`} />
-          </div>
-          <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <div className="font-semibold">Wild</div>
-            <div className="mt-1 text-[0.7em] opacity-60">
-              {card.sets[0]} / {card.sets[1]}
-            </div>
-          </div>
-        </>
-      );
-
+      return <Wild2Face sets={card.sets} />;
     case "wild10":
-      return (
-        <>
-          <div className="grid h-2/5 w-full grid-cols-5 grid-rows-2">
-            <div className="bg-[var(--color-set-brown)]" />
-            <div className="bg-[var(--color-set-light-blue)]" />
-            <div className="bg-[var(--color-set-pink)]" />
-            <div className="bg-[var(--color-set-orange)]" />
-            <div className="bg-[var(--color-set-red)]" />
-            <div className="bg-[var(--color-set-yellow)]" />
-            <div className="bg-[var(--color-set-green)]" />
-            <div className="bg-[var(--color-set-dark-blue)]" />
-            <div className="bg-[var(--color-set-railroad)]" />
-            <div className="bg-[var(--color-set-utility)]" />
-          </div>
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <div className="font-bold">Rainbow</div>
-            <div className="text-[0.7em] opacity-60">Any color</div>
-          </div>
-        </>
-      );
-
-    case "action": {
-      const Icon = ACTION_ICONS[card.action];
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center bg-amber-50 px-1 text-center">
-          <div className="text-[0.7em] uppercase tracking-widest opacity-60">Action</div>
-          <Icon size={28} weight="duotone" className="my-1 text-amber-700" />
-          <div className="font-bold leading-tight">{ACTION_LABELS[card.action]}</div>
-          <div className="mt-1 font-mono opacity-60">${card.value}M</div>
-          {card.action === "rent" && card.rentSets && (
-            <div className="mt-0.5 text-[0.6em] opacity-50">
-              {card.rentSingleTarget ? "★ Any color" : card.rentSets.join("/")}
-            </div>
-          )}
-        </div>
-      );
-    }
+      return <Wild10Face />;
+    case "action":
+      return <ActionFace card={card} />;
   }
 }
 
-// Mapping action card kinds → Phosphor icons (duotone style for warm tabletop feel).
-const ACTION_ICONS: Record<ActionKind, React.ComponentType<{ size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone"; className?: string }>> = {
-  dealBreaker: HandGrabbing, // hostile takeover
-  justSayNo: Shield, // counter
-  slyDeal: Hand, // swipe
-  forcedDeal: ArrowsLeftRight, // tribute
-  debtCollector: CurrencyDollar, // eviction
-  birthday: Cake, // tip jar
-  doubleRent: Sparkle, // doubler
-  house: House,
-  hotel: Buildings,
-  passGo: Compass, // round trip
-  rent: Receipt,
-};
+// ---------------------------------------------------------------------------
+// Money face — bold dollar amount on a faint mint background. Mirrors the
+// look of real Monopoly Deal money cards (front: subtle pattern, big number).
+// ---------------------------------------------------------------------------
+
+function MoneyFace({ value }: { value: 1 | 2 | 3 | 4 | 5 | 10 }) {
+  const tint =
+    value === 10
+      ? "bg-amber-100 text-amber-900"
+      : value >= 4
+        ? "bg-emerald-100 text-emerald-900"
+        : value >= 2
+          ? "bg-sky-100 text-sky-900"
+          : "bg-zinc-100 text-zinc-700";
+  return (
+    <div className={`flex h-full w-full flex-col items-center justify-center ${tint}`}>
+      <div className="text-[0.6em] uppercase tracking-[0.3em] opacity-60">Bank</div>
+      <div className="font-display text-[2.1em] leading-none">{value}M</div>
+      <div className="mt-0.5 text-[0.55em] uppercase tracking-[0.2em] opacity-50">${value} million</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Property face — color band on top, name + rent ladder, bank value badge.
+// Layout mirrors classic Monopoly Deal property cards.
+// ---------------------------------------------------------------------------
+
+function PropertyFace({
+  card,
+  size,
+}: {
+  card: Extract<CardData, { kind: "property" }>;
+  size: CardSize;
+}) {
+  const ladder = SET_DEFS[card.set].rentLadder;
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className={`${SET_BG[card.set]} flex h-[28%] items-end px-1.5 pb-0.5`}>
+        <div
+          className={`text-[0.55em] font-semibold uppercase tracking-[0.2em] ${SET_BAND_INK[card.set]} opacity-90`}
+        >
+          {SET_LABEL[card.set]}
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
+        <div className="font-display text-[0.95em] uppercase leading-[1.05] text-zinc-900">
+          {size === "sm" ? abbreviateProperty(card.name) : card.name}
+        </div>
+        <div className="mt-1 flex items-center gap-1 text-[0.6em] uppercase tracking-[0.18em] opacity-55">
+          <span>Rent</span>
+          <span className="font-mono tracking-tight">{ladder.join(" · ")}</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between px-1.5 pb-1 text-[0.6em] uppercase tracking-[0.15em] opacity-70">
+        <span className="rounded bg-zinc-100 px-1 py-0.5 font-mono">${card.value}M</span>
+        <span className="opacity-60">Deed</span>
+      </div>
+    </div>
+  );
+}
+
+// Compact form used at the smallest card size where full names won't fit.
+function abbreviateProperty(name: string): string {
+  return name
+    .replace(/Avenue/g, "Ave.")
+    .replace(/Place/g, "Pl.")
+    .replace(/Railroad/g, "RR")
+    .replace(/Mediterranean/g, "Med.")
+    .replace(/Pennsylvania/g, "Penn.")
+    .replace(/Connecticut/g, "Conn.")
+    .replace(/North Carolina/g, "N. Carolina")
+    .replace(/St\. Charles/g, "St. Charles")
+    .replace(/St\. James/g, "St. James");
+}
+
+// ---------------------------------------------------------------------------
+// Property Wild Cards
+// ---------------------------------------------------------------------------
+
+function Wild2Face({ sets }: { sets: [SetColor, SetColor] }) {
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className="grid h-[40%] w-full grid-cols-2">
+        <div className={SET_BG[sets[0]]} />
+        <div className={SET_BG[sets[1]]} />
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
+        <div className="font-display text-[0.95em] uppercase leading-none text-zinc-900">
+          Wild
+        </div>
+        <div className="mt-1 text-[0.6em] uppercase tracking-[0.15em] opacity-65">
+          {SET_LABEL[sets[0]]} / {SET_LABEL[sets[1]]}
+        </div>
+      </div>
+      <div className="px-1.5 pb-1 text-[0.55em] uppercase tracking-[0.18em] opacity-60">
+        Property Wild
+      </div>
+    </div>
+  );
+}
+
+function Wild10Face() {
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className="grid h-[40%] w-full grid-cols-5 grid-rows-2">
+        <div className="bg-[var(--color-set-brown)]" />
+        <div className="bg-[var(--color-set-light-blue)]" />
+        <div className="bg-[var(--color-set-pink)]" />
+        <div className="bg-[var(--color-set-orange)]" />
+        <div className="bg-[var(--color-set-red)]" />
+        <div className="bg-[var(--color-set-yellow)]" />
+        <div className="bg-[var(--color-set-green)]" />
+        <div className="bg-[var(--color-set-dark-blue)]" />
+        <div className="bg-[var(--color-set-railroad)]" />
+        <div className="bg-[var(--color-set-utility)]" />
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <div className="font-display text-[1em] uppercase leading-none text-zinc-900">
+          Wild
+        </div>
+        <div className="mt-1 text-[0.6em] uppercase tracking-[0.18em] opacity-65">
+          Any color
+        </div>
+      </div>
+      <div className="px-1.5 pb-1 text-[0.55em] uppercase tracking-[0.18em] opacity-60">
+        Multicolor
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Action face — saturated background, white illustration, bold title block.
+// ---------------------------------------------------------------------------
+
+function ActionFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
+  const theme = ACTION_THEME[card.action];
+  const Art = ACTION_ART[card.action];
+  const label = ACTION_LABELS[card.action];
+
+  return (
+    <div
+      className="flex h-full w-full flex-col"
+      style={{ backgroundColor: theme.bg, color: theme.ink }}
+    >
+      {/* top tag — "ACTION" + bank chip */}
+      <div className="flex items-center justify-between px-1.5 pt-1 text-[0.55em] font-semibold uppercase tracking-[0.2em] opacity-80">
+        <span>Action</span>
+        <span
+          className="rounded-sm bg-white/85 px-1 py-[1px] font-mono text-zinc-900"
+          style={{ color: "#0c0c0c" }}
+        >
+          ${card.value}M
+        </span>
+      </div>
+
+      {/* illustration — fills the middle band */}
+      <div className="flex flex-1 items-center justify-center px-2 py-1">
+        <Art className="h-full w-full max-h-[64%]" />
+      </div>
+
+      {/* white banner with the action title */}
+      <div className="bg-white px-1 py-1 text-center">
+        <div className="font-display text-[0.85em] uppercase leading-[1.05] text-zinc-900">
+          {label}
+        </div>
+        {card.action === "rent" && card.rentSets && (
+          <div className="mt-0.5 text-[0.55em] uppercase tracking-[0.15em] text-zinc-500">
+            {card.rentSingleTarget ? "★ Any color" : card.rentSets.map((c) => SET_LABEL[c]).join(" / ")}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function cardLabel(card: CardData): string {
   switch (card.kind) {
     case "money":
       return `Money $${card.value}M`;
     case "property":
-      return `${card.name} (${card.set})`;
+      return `${card.name} (${SET_LABEL[card.set]})`;
     case "wild2":
-      return `Wild ${card.sets[0]}/${card.sets[1]}`;
+      return `Property Wild ${SET_LABEL[card.sets[0]]}/${SET_LABEL[card.sets[1]]}`;
     case "wild10":
-      return "Rainbow Wild";
+      return "Multicolor Property Wild";
     case "action":
       return ACTION_LABELS[card.action];
   }
 }
 
-// Simple back-of-card visual for the deck.
+// ---------------------------------------------------------------------------
+// Card back — Monopoly Deal red treatment with a subtle "MD" monogram.
+// ---------------------------------------------------------------------------
+
 export function CardBack({ size = "md", count }: { size?: CardSize; count?: number }) {
   return (
     <div
       className={[
         SIZE_CLS[size],
-        "flex flex-col items-center justify-center rounded-md border border-amber-900 bg-gradient-to-br from-amber-700 to-amber-900 text-amber-100 shadow-md",
+        "relative flex flex-col items-center justify-center overflow-hidden rounded-md border border-red-950 bg-gradient-to-br from-red-600 to-red-800 text-white shadow-md",
       ].join(" ")}
       aria-label={`Deck of ${count ?? "?"} cards`}
     >
-      <div className="font-bold uppercase tracking-widest">Realty</div>
-      <div className="text-[0.7em] opacity-70">Royale</div>
+      <div
+        className="pointer-events-none absolute inset-0 opacity-20"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(45deg, rgba(255,255,255,0.18) 0 2px, transparent 2px 8px)",
+        }}
+      />
+      <div className="relative z-10 flex flex-col items-center">
+        <div className="font-display text-base uppercase leading-none drop-shadow">Monopoly</div>
+        <div className="mt-1 font-display text-[0.55em] uppercase leading-none tracking-[0.4em] opacity-90">
+          Deal
+        </div>
+      </div>
       {typeof count === "number" && (
-        <div className="mt-2 rounded-full bg-amber-100/20 px-2 text-[0.7em]">{count}</div>
+        <div className="relative z-10 mt-2 rounded-full bg-white/15 px-2 text-[0.7em]">{count}</div>
       )}
     </div>
   );

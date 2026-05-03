@@ -389,7 +389,7 @@ function playPassGo(
   s.discardPile.push(a.cardId);
   drawCardsInto(s, player, 2);
   s.playsRemaining -= 1;
-  s.log.push({ at: s.currentTurn, message: `${player.name} played Round Trip (+2).` });
+  s.log.push({ at: s.currentTurn, message: `${player.name} played Pass Go (+2).` });
 }
 
 // ---------------------------------------------------------------------------
@@ -465,7 +465,7 @@ function playSlyDeal(
     actionCardId: a.cardId,
     defenders: [target.id],
   });
-  s.log.push({ at: s.currentTurn, message: `${source.name} plays Swipe on ${target.name}.` });
+  s.log.push({ at: s.currentTurn, message: `${source.name} plays Sly Deal on ${target.name}.` });
   // Note: card consumes 1 play. Plays decrement when JSN window resolves.
 }
 
@@ -502,7 +502,7 @@ function playForcedDeal(
     actionCardId: a.cardId,
     defenders: [target.id],
   });
-  s.log.push({ at: s.currentTurn, message: `${source.name} plays Tribute on ${target.name}.` });
+  s.log.push({ at: s.currentTurn, message: `${source.name} plays Forced Deal on ${target.name}.` });
 }
 
 function playDealBreaker(
@@ -518,7 +518,7 @@ function playDealBreaker(
     throw new RuleError("target group not found");
   }
   if (!isGroupComplete(group)) {
-    throw new RuleError("Hostile Takeover requires a complete set");
+    throw new RuleError("Deal Breaker requires a complete set");
   }
 
   removeFromHand(source, a.cardId);
@@ -535,7 +535,7 @@ function playDealBreaker(
   });
   s.log.push({
     at: s.currentTurn,
-    message: `${source.name} plays Hostile Takeover on ${target.name}'s ${a.targetColor}.`,
+    message: `${source.name} plays Deal Breaker on ${target.name}'s ${a.targetColor}.`,
   });
 }
 
@@ -555,7 +555,7 @@ function playDebtCollector(
   });
   s.log.push({
     at: s.currentTurn,
-    message: `${source.name} plays Eviction on ${target.name} ($${DEBT_COLLECTOR_AMOUNT}M).`,
+    message: `${source.name} plays Debt Collector on ${target.name} ($${DEBT_COLLECTOR_AMOUNT}M).`,
   });
 }
 
@@ -575,7 +575,7 @@ function playBirthday(
   });
   s.log.push({
     at: s.currentTurn,
-    message: `${source.name} plays Tip Jar — every opponent owes $${BIRTHDAY_AMOUNT}M.`,
+    message: `${source.name} plays It's My Birthday — every opponent owes $${BIRTHDAY_AMOUNT}M.`,
   });
 }
 
@@ -687,7 +687,7 @@ function respondJsn(
     s.discardPile.push(a.cardId);
     w.jsnStack.push(a.playerId);
     w.responderIsActor = !w.responderIsActor;
-    s.log.push({ at: s.currentTurn, message: `${player.name} plays Counter.` });
+    s.log.push({ at: s.currentTurn, message: `${player.name} plays Just Say No.` });
     return; // window stays open; the other side decides next
   }
 

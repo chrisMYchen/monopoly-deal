@@ -38,7 +38,7 @@ monopoly_deal_ui_screenshots/  # visual inspiration
 
 - The engine is pure: `applyAction(state, action) -> newState`. Never mutate; never do I/O. All randomness goes through `rng.ts` so tests are deterministic.
 - Card data lives in `src/engine/cards.ts`. `assertDeckTotals()` runs at module load and throws if counts drift from 110.
-- IP-safe naming: no Hasbro / Monopoly trademarks. Internal `ActionKind` keys stay descriptive (slyDeal, dealBreaker) but display labels live in `ACTION_LABELS` and use friendly reskin names.
+- This is a local-play clone — canonical Monopoly Deal names (Boardwalk, Sly Deal, Just Say No, etc.) are used directly in the UI. Internal `ActionKind` keys (slyDeal, dealBreaker, etc.) stay as the engine's source of truth; display labels in `ACTION_LABELS` mirror the canonical names.
 - Use bun, not npm — bun is the only package manager in the local env.
 
 ## Plan

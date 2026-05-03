@@ -10,17 +10,17 @@ import type { LogEntry } from "@/engine/state";
 // message — only events with real strategic weight (action card plays, JSN,
 // payments, win) get a toast.
 //
-// Beginner: never miss "Bob played Hostile Takeover on you." Expert: keep
+// Beginner: never miss "Bob played Deal Breaker on you." Expert: keep
 // peripheral awareness of opponents while planning your own turn.
 
 const HIGH_IMPACT_PATTERNS = [
-  /plays Swipe/i,
-  /plays Tribute/i,
-  /plays Hostile Takeover/i,
-  /plays Eviction/i,
-  /plays Tip Jar/i,
+  /plays Sly Deal/i,
+  /plays Forced Deal/i,
+  /plays Deal Breaker/i,
+  /plays Debt Collector/i,
+  /plays It's My Birthday/i,
   /plays Rent/i,
-  /plays Counter/i,
+  /plays Just Say No/i,
   /Action against/i, // canceled
   /stole .* set/i,
   /detached/i,

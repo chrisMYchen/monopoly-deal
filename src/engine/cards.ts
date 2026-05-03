@@ -74,19 +74,19 @@ export const ACTION_VALUES: Record<ActionKind, number> = {
   rent: 1, // 2-color rents are $1; the wild ★ rent is $3 (override on the card)
 };
 
-// Friendly reskin labels — distinct from internal ActionKind keys to keep the
-// engine free of branding while letting the UI render IP-safe names.
+// Canonical Monopoly Deal action labels. Internal ActionKind keys remain the
+// engine's source of truth; this is the display layer.
 export const ACTION_LABELS: Record<ActionKind, string> = {
-  dealBreaker: "Hostile Takeover",
-  justSayNo: "Counter",
-  slyDeal: "Swipe",
-  forcedDeal: "Tribute",
-  debtCollector: "Eviction",
-  birthday: "Tip Jar",
-  doubleRent: "Doubler",
+  dealBreaker: "Deal Breaker",
+  justSayNo: "Just Say No",
+  slyDeal: "Sly Deal",
+  forcedDeal: "Forced Deal",
+  debtCollector: "Debt Collector",
+  birthday: "It's My Birthday",
+  doubleRent: "Double The Rent",
   house: "House",
   hotel: "Hotel",
-  passGo: "Round Trip",
+  passGo: "Pass Go",
   rent: "Rent",
 };
 
@@ -149,19 +149,19 @@ export type ActionCard = {
 
 export type Card = MoneyCard | PropertyCard | Wild2Card | Wild10Card | ActionCard;
 
-// IP-safe property names keyed by color. Counts here MUST match SET_DEFS counts
-// for solid properties — railroads have 4, utilities have 2, etc.
+// Canonical Monopoly Deal property names keyed by color. Counts here MUST match
+// SET_DEFS counts — railroads have 4, utilities have 2, etc.
 const PROPERTY_NAMES: Record<SetColor, string[]> = {
-  brown: ["Tin Row", "Dust Lane"],
-  lightBlue: ["Harbor Mist", "Cove District", "Tide Way"],
-  pink: ["Rose Quarter", "Sunset Strip", "Lilac Walk"],
-  orange: ["Ember Heights", "Copper Hill", "Saffron Bay"],
-  red: ["Crimson Court", "Vermillion Park", "Ruby Mile"],
-  yellow: ["Goldleaf Plaza", "Honey District", "Amber Square"],
-  green: ["Verdant Hills", "Mossgate", "Pinecrest"],
-  darkBlue: ["Cobalt Crown", "Sapphire Reach"],
-  railroad: ["North Line", "Coastal Line", "Iron Line", "Sky Line"],
-  utility: ["Power Grid", "Water Grid"],
+  brown: ["Mediterranean Avenue", "Baltic Avenue"],
+  lightBlue: ["Oriental Avenue", "Vermont Avenue", "Connecticut Avenue"],
+  pink: ["St. Charles Place", "States Avenue", "Virginia Avenue"],
+  orange: ["St. James Place", "Tennessee Avenue", "New York Avenue"],
+  red: ["Kentucky Avenue", "Indiana Avenue", "Illinois Avenue"],
+  yellow: ["Atlantic Avenue", "Ventnor Avenue", "Marvin Gardens"],
+  green: ["Pacific Avenue", "North Carolina Avenue", "Pennsylvania Avenue"],
+  darkBlue: ["Park Place", "Boardwalk"],
+  railroad: ["Reading Railroad", "Pennsylvania Railroad", "B. & O. Railroad", "Short Line"],
+  utility: ["Electric Company", "Water Works"],
 };
 
 // Dual-color wild combos (9 cards total).
