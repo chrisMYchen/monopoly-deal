@@ -226,9 +226,9 @@ function MoneyFace({ value }: { value: 1 | 2 | 3 | 4 | 5 | 10 }) {
           : "bg-zinc-100 text-zinc-700";
   return (
     <div className={`flex h-full w-full flex-col items-center justify-center ${tint}`}>
-      <div className="text-[0.6em] uppercase tracking-[0.3em] opacity-60">Bank</div>
-      <div className="font-display text-[2.1em] leading-none">{value}M</div>
-      <div className="mt-0.5 text-[0.55em] uppercase tracking-[0.2em] opacity-50">${value} million</div>
+      <div className="text-[0.55em] font-semibold uppercase tracking-[0.25em] opacity-60">Bank</div>
+      <div className="font-display text-[2.6em] leading-none tracking-tight">${value}M</div>
+      <div className="mt-1 text-[0.5em] uppercase tracking-[0.2em] opacity-50">{value} million</div>
     </div>
   );
 }
@@ -256,10 +256,10 @@ function PropertyFace({
         </div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
-        <div className="font-display text-[0.95em] uppercase leading-[1.05] text-zinc-900">
+        <div className="font-display text-[1.15em] uppercase leading-[1.05] tracking-[0.01em] text-zinc-900">
           {size === "sm" ? abbreviateProperty(card.name) : card.name}
         </div>
-        <div className="mt-1 flex items-center gap-1 text-[0.6em] uppercase tracking-[0.18em] opacity-55">
+        <div className="mt-1.5 flex items-center gap-1 text-[0.55em] font-semibold uppercase tracking-[0.18em] opacity-55">
           <span>Rent</span>
           <span className="font-mono tracking-tight">{ladder.join(" · ")}</span>
         </div>
@@ -298,14 +298,14 @@ function Wild2Face({ sets }: { sets: [SetColor, SetColor] }) {
         <div className={SET_BG[sets[1]]} />
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
-        <div className="font-display text-[0.95em] uppercase leading-none text-zinc-900">
+        <div className="font-display text-[1.4em] uppercase leading-none tracking-[0.02em] text-zinc-900">
           Wild
         </div>
-        <div className="mt-1 text-[0.6em] uppercase tracking-[0.15em] opacity-65">
+        <div className="mt-1 text-[0.55em] font-semibold uppercase tracking-[0.15em] opacity-65">
           {SET_LABEL[sets[0]]} / {SET_LABEL[sets[1]]}
         </div>
       </div>
-      <div className="px-1.5 pb-1 text-[0.55em] uppercase tracking-[0.18em] opacity-60">
+      <div className="px-1.5 pb-1 text-[0.5em] font-semibold uppercase tracking-[0.18em] opacity-60">
         Property Wild
       </div>
     </div>
@@ -328,14 +328,14 @@ function Wild10Face() {
         <div className="bg-[var(--color-set-utility)]" />
       </div>
       <div className="flex flex-1 flex-col items-center justify-center text-center">
-        <div className="font-display text-[1em] uppercase leading-none text-zinc-900">
+        <div className="font-display text-[1.4em] uppercase leading-none tracking-[0.02em] text-zinc-900">
           Wild
         </div>
-        <div className="mt-1 text-[0.6em] uppercase tracking-[0.18em] opacity-65">
+        <div className="mt-1 text-[0.55em] font-semibold uppercase tracking-[0.18em] opacity-65">
           Any color
         </div>
       </div>
-      <div className="px-1.5 pb-1 text-[0.55em] uppercase tracking-[0.18em] opacity-60">
+      <div className="px-1.5 pb-1 text-[0.5em] font-semibold uppercase tracking-[0.18em] opacity-60">
         Multicolor
       </div>
     </div>
@@ -374,11 +374,11 @@ function ActionFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
 
       {/* white banner with the action title */}
       <div className="bg-white px-1 py-1 text-center">
-        <div className="font-display text-[0.85em] uppercase leading-[1.05] text-zinc-900">
+        <div className="font-display text-[1.1em] uppercase leading-[1.05] tracking-[0.02em] text-zinc-900">
           {label}
         </div>
         {card.action === "rent" && card.rentSets && (
-          <div className="mt-0.5 text-[0.55em] uppercase tracking-[0.15em] text-zinc-500">
+          <div className="mt-0.5 text-[0.55em] font-medium uppercase tracking-[0.15em] text-zinc-500">
             {card.rentSingleTarget ? "★ Any color" : card.rentSets.map((c) => SET_LABEL[c]).join(" / ")}
           </div>
         )}
@@ -422,14 +422,18 @@ export function CardBack({ size = "md", count }: { size?: CardSize; count?: numb
             "repeating-linear-gradient(45deg, rgba(255,255,255,0.18) 0 2px, transparent 2px 8px)",
         }}
       />
-      <div className="relative z-10 flex flex-col items-center">
-        <div className="font-display text-base uppercase leading-none drop-shadow">Monopoly</div>
-        <div className="mt-1 font-display text-[0.55em] uppercase leading-none tracking-[0.4em] opacity-90">
+      <div className="relative z-10 flex flex-col items-center px-1 text-center">
+        <div className="font-display text-[1.55em] uppercase leading-none tracking-tight drop-shadow">
+          Monopoly
+        </div>
+        <div className="mt-0.5 font-display text-[1.1em] uppercase leading-none tracking-[0.25em] opacity-95">
           Deal
         </div>
       </div>
       {typeof count === "number" && (
-        <div className="relative z-10 mt-2 rounded-full bg-white/15 px-2 text-[0.7em]">{count}</div>
+        <div className="relative z-10 mt-2 rounded-full bg-white/15 px-2 py-[1px] font-mono text-[0.7em]">
+          {count}
+        </div>
       )}
     </div>
   );

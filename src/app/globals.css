@@ -31,7 +31,7 @@
   --color-action-pass-go: #d93030;
   --color-action-rent: #d4a017;
 
-  --font-display: "Bowlby One", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Anton", "Oswald", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -45,7 +45,8 @@ body {
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
+  font-weight: 400;
 }
 
 body {

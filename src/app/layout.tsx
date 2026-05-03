@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Bowlby_One, Inter } from "next/font/google";
+import { Anton, Inter } from "next/font/google";
 import "./globals.css";
 
-const display = Bowlby_One({
+// Anton is the closest free Google Font to the condensed bold caps used on
+// classic Monopoly Deal action + property titles. Replaces Bowlby One, which
+// was too wide/chunky to fit at the smallest card sizes.
+const display = Anton({
   weight: "400",
   subsets: ["latin"],
   variable: "--font-display",

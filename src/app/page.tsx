@@ -50,13 +50,13 @@ export default function Home() {
         <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[-8deg] rounded-md border border-red-900 bg-gradient-to-br from-red-600 to-red-800 shadow-2xl" />
         <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[3deg] rounded-md border border-red-900 bg-gradient-to-br from-red-600 to-red-800 shadow-2xl" />
         <div className="absolute left-1/2 top-1/2 flex h-full w-full -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-md border border-red-900 bg-gradient-to-br from-red-500 to-red-700 shadow-2xl">
-          <div className="font-display text-lg uppercase leading-none tracking-tight text-white drop-shadow">Monopoly</div>
-          <div className="mt-1 font-display text-[11px] uppercase leading-none tracking-[0.35em] text-white/85">Deal</div>
+          <div className="font-display text-2xl uppercase leading-none tracking-tight text-white drop-shadow">Monopoly</div>
+          <div className="mt-1 font-display text-base uppercase leading-none tracking-[0.3em] text-white/90">Deal</div>
         </div>
       </div>
 
       <header>
-        <h1 className="font-display text-5xl uppercase tracking-tight text-red-100">Monopoly Deal</h1>
+        <h1 className="font-display text-6xl uppercase tracking-tight text-red-100 drop-shadow">Monopoly Deal</h1>
         <p className="mt-2 text-base opacity-70">
           A friendly card game of property and ruthless trades.
         </p>
