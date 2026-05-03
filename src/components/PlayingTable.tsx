@@ -49,6 +49,8 @@ import { HandView } from "./HandView";
 import { HelpButton } from "./HelpSheet";
 import { OpponentStrip } from "./OpponentStrip";
 import { PlayerAvatar } from "./PlayerAvatar";
+import { PlayLogSheet } from "./PlayLogSheet";
+import { RecentsRibbon } from "./RecentsRibbon";
 import { SetProgress } from "./SetProgress";
 import { PropertySetsView } from "./PropertySetsView";
 import { Toasts } from "./Toasts";
@@ -329,6 +331,8 @@ function PlayingTableInner({
             jsnInventory={jsnsInHand.length}
             preview={preview}
             chainDepth={w.jsnStack.length}
+            state={state}
+            selfId={selfId}
             onPlay={(cid) =>
               send({ type: "RESPOND_JSN", playerId: selfId, play: true, cardId: cid })
             }
@@ -346,6 +350,8 @@ function PlayingTableInner({
           payer={self}
           amountOwed={state.pending.amountOwed}
           reason={describeDeclaration(state.pending.declaration, state)}
+          state={state}
+          selfId={selfId}
           onSubmit={(cardIds) => send({ type: "PAY", playerId: selfId, cardIds })}
         />
         <SelfArea
@@ -713,37 +719,60 @@ function Wrapper({ state, children }: { state: ProjectedGameState; children: Rea
   // entire game surface: a card moving from hand to play area, or from one
   // player's properties to another's via Sly Deal, animates smoothly because
   // both endpoints share the same `layoutId="card-<id>"`.
+  //
+  // playLog open/close lives here so the ribbon, the chevron in TopBanner,
+  // and the sheet share the same toggle. State resets when transitioning
+  // between branches of the if-cascade (e.g. opening a draft picker), which
+  // is the desired behavior — anything more important than the log should
+  // collapse the log.
+  const [playLogOpen, setPlayLogOpen] = useState(false);
+  const openPlayLog = () => setPlayLogOpen(true);
   return (
     <LayoutGroup>
       <main
         data-table-root
         className="flex min-h-dvh flex-col gap-2 p-2 pb-40 sm:p-4 sm:pb-40"
       >
-        <TopBanner state={state} />
+        <div className="sticky top-2 z-30 flex flex-col gap-1.5">
+          <TopBanner state={state} onOpenPlayLog={openPlayLog} />
+          <RecentsRibbon state={state} selfId={state.selfId} onOpen={openPlayLog} />
+        </div>
         {/* Felt panel: parchment "room" wraps a contained green "table". */}
         <section className="surface-felt flex flex-col gap-2 rounded-2xl p-2 sm:p-3">
           {children}
         </section>
-        <GameLog log={state.log} />
-        <Toasts log={state.log} selfId={state.selfId} />
+        <GameLog state={state} />
+        <Toasts state={state} selfId={state.selfId} />
+        <PlayLogSheet
+          state={state}
+          selfId={state.selfId}
+          open={playLogOpen}
+          onClose={() => setPlayLogOpen(false)}
+        />
         <HelpButton />
       </main>
     </LayoutGroup>
   );
 }
 
-function TopBanner({ state }: { state: ProjectedGameState }) {
+function TopBanner({
+  state,
+  onOpenPlayLog,
+}: {
+  state: ProjectedGameState;
+  onOpenPlayLog?: () => void;
+}) {
   const cur = state.players[state.currentTurn]!;
   const pendingMsg = describePending(state);
   const isMyTurn = state.selfId === cur.id;
   const onClockId = onClockPlayerIdFromProjected(state);
   return (
     <div
-      // Sticky so the timer + plays-remaining pills stay visible regardless of
-      // scroll. Inked surface paired with the bottom action bar — the two
-      // read as a "cockpit" anchoring the felt table.
+      // Inked surface paired with the bottom action bar — the two read as a
+      // "cockpit" anchoring the felt table. Sticky lives on the parent so the
+      // banner and the recents ribbon stick together.
       className={[
-        "surface-inked sticky top-2 z-30 rounded-2xl px-3 py-2 text-center text-sm transition-colors",
+        "surface-inked rounded-2xl px-3 py-2 text-center text-sm transition-colors",
         isMyTurn ? "rr-pulse" : "",
       ].join(" ")}
       data-testid="turn-banner"
@@ -761,6 +790,18 @@ function TopBanner({ state }: { state: ProjectedGameState }) {
           dim={!isMyTurn}
         />
         <FxToggles />
+        {onOpenPlayLog && (
+          <button
+            type="button"
+            onClick={onOpenPlayLog}
+            aria-label="Open play log"
+            data-testid="open-play-log"
+            className="sm:hidden inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-widest opacity-80 transition hover:bg-white/10"
+          >
+            <span aria-hidden>📜</span>
+            Log
+          </button>
+        )}
       </div>
       {pendingMsg && <div className="text-xs opacity-70">{pendingMsg}</div>}
     </div>
