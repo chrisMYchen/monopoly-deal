@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { SET_LABEL, cardById, type CardId, type SetColor } from "@/engine/cards";
 import type { LogEntry } from "@/engine/state";
 
 // Collapsible log panel showing the last N moves. Auto-scrolls to the bottom on
@@ -59,7 +60,7 @@ export function GameLog({ log }: { log: LogEntry[] }) {
                 key={`${entry.at}-${i}`}
                 className="rounded border-l-2 border-white/10 pl-2 leading-snug opacity-80"
               >
-                {entry.message}
+                {entry.swap ? <SwapEntry entry={entry} /> : entry.message}
               </li>
             ))}
           </ol>
@@ -69,9 +70,67 @@ export function GameLog({ log }: { log: LogEntry[] }) {
           mobile defers to a small badge to keep the viewport breathing. */}
       {!open && lastEntry && (
         <div className="hidden border-t border-white/10 px-2 py-1.5 leading-snug opacity-80 sm:block">
-          {lastEntry.message}
+          {lastEntry.swap ? <SwapEntry entry={lastEntry} /> : lastEntry.message}
         </div>
       )}
     </div>
+  );
+}
+
+// Rich rendering for a Forced Deal swap log entry: parses the message text
+// around the two property labels and inlines color chips so readers can see
+// at-a-glance which colors changed hands.
+function SwapEntry({ entry }: { entry: LogEntry }) {
+  if (!entry.swap) return <>{entry.message}</>;
+  const { gaveCardId, tookCardId, gaveFromColor, tookFromColor } = entry.swap;
+  // Source/target names are reliably the first/last words of the canonical
+  // message: "<source> gave <X> and took <Y> from <target>." We just split.
+  const m = entry.message.match(/^(.*?) gave .* and took .* from (.*?)\.$/);
+  const sourceName = m?.[1] ?? "";
+  const targetName = m?.[2] ?? "";
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className="font-semibold">{sourceName}</span>
+      <span className="opacity-60">gave</span>
+      <CardChip cardId={gaveCardId} color={gaveFromColor} />
+      <span aria-hidden className="opacity-50">↔</span>
+      <span className="opacity-60">took</span>
+      <CardChip cardId={tookCardId} color={tookFromColor} />
+      <span className="opacity-60">from</span>
+      <span className="font-semibold">{targetName}</span>
+    </span>
+  );
+}
+
+const CHIP_BG: Record<SetColor, string> = {
+  brown: "bg-[var(--color-set-brown)] text-white",
+  lightBlue: "bg-[var(--color-set-light-blue)] text-zinc-900",
+  pink: "bg-[var(--color-set-pink)] text-white",
+  orange: "bg-[var(--color-set-orange)] text-white",
+  red: "bg-[var(--color-set-red)] text-white",
+  yellow: "bg-[var(--color-set-yellow)] text-zinc-900",
+  green: "bg-[var(--color-set-green)] text-white",
+  darkBlue: "bg-[var(--color-set-dark-blue)] text-white",
+  railroad: "bg-[var(--color-set-railroad)] text-white",
+  utility: "bg-[var(--color-set-utility)] text-zinc-900",
+};
+
+function CardChip({ cardId, color }: { cardId: CardId; color: SetColor }) {
+  const c = cardById(cardId);
+  const name =
+    c.kind === "property"
+      ? c.name
+      : c.kind === "wild2"
+        ? "Wild"
+        : c.kind === "wild10"
+          ? "★ Wild"
+          : "card";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-sm px-1 py-[1px] text-[10px] font-medium ${CHIP_BG[color]}`}
+      title={`${name} — ${SET_LABEL[color]}`}
+    >
+      {name}
+    </span>
   );
 }

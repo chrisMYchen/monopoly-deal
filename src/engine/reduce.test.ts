@@ -150,9 +150,9 @@ describe("PLAY_PROPERTY", () => {
       assignedColor: "red",
     });
     const p1 = getPlayer(s, "p1");
-    expect(p1.tableau.length).toBe(1);
-    expect(p1.tableau[0]!.color).toBe("red");
-    expect(p1.tableau[0]!.cardIds).toEqual([red]);
+    expect(p1.propertySets.length).toBe(1);
+    expect(p1.propertySets[0]!.color).toBe("red");
+    expect(p1.propertySets[0]!.cardIds).toEqual([red]);
     expect(s.playsRemaining).toBe(2);
   });
 
@@ -187,7 +187,7 @@ describe("PLAY_PROPERTY", () => {
       cardId: wild,
       assignedColor: "pink",
     });
-    expect(getPlayer(s, "p1").tableau[0]!.color).toBe("pink");
+    expect(getPlayer(s, "p1").propertySets[0]!.color).toBe("pink");
   });
 
   it("rejects wild2 placement to a color it doesn't carry", () => {
@@ -243,7 +243,7 @@ describe("PLAY_PROPERTY", () => {
       cardId: rainbow,
       assignedColor: "red",
     });
-    expect(getPlayer(s, "p1").tableau[0]!.cardIds.length).toBe(2);
+    expect(getPlayer(s, "p1").propertySets[0]!.cardIds.length).toBe(2);
   });
 
   it("extends an already-complete same-color group instead of spawning a new one (overcomplete is one set)", () => {
@@ -265,7 +265,7 @@ describe("PLAY_PROPERTY", () => {
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: browns[1]!, assignedColor: "brown" });
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: brownWild, assignedColor: "brown" });
     const p1 = getPlayer(s, "p1");
-    const brownGroups = p1.tableau.filter((g) => g.color === "brown");
+    const brownGroups = p1.propertySets.filter((g) => g.color === "brown");
     expect(brownGroups.length).toBe(1);
     expect(brownGroups[0]!.cardIds.length).toBe(3);
     expect(brownGroups[0]!.cardIds).toContain(brownWild);
@@ -304,13 +304,13 @@ describe("PLAY_PROPERTY", () => {
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: oranges[2]!, assignedColor: "orange" });
 
     let p1 = getPlayer(s, "p1");
-    let orangeGroups = p1.tableau.filter((g) => g.color === "orange");
+    let orangeGroups = p1.propertySets.filter((g) => g.color === "orange");
     expect(orangeGroups.length).toBe(1);
     expect(orangeGroups[0]!.cardIds.length).toBe(4);
 
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: orangeWilds[1]!, assignedColor: "orange" });
     p1 = getPlayer(s, "p1");
-    orangeGroups = p1.tableau.filter((g) => g.color === "orange");
+    orangeGroups = p1.propertySets.filter((g) => g.color === "orange");
     expect(orangeGroups.length).toBe(1);
     expect(orangeGroups[0]!.cardIds.length).toBe(5);
     // All five orange-capable cards landed in the single set.
@@ -334,7 +334,7 @@ describe("PLAY_PROPERTY", () => {
       (c) => c.kind === "wild2" && c.sets.includes("orange") && c.sets.includes("pink"),
     );
     s = injectHand(s, "p1", [orangeWilds[0]!]);
-    // Hand-roll the buggy two-orange-group state directly on p1's tableau,
+    // Hand-roll the buggy two-orange-group state directly on p1's properties,
     // then verify the next placement collapses it correctly.
     s = {
       ...s,
@@ -342,7 +342,7 @@ describe("PLAY_PROPERTY", () => {
         p.id === "p1"
           ? {
               ...p,
-              tableau: [
+              propertySets: [
                 { color: "orange" as const, cardIds: [oranges[0]!, oranges[1]!, oranges[2]!], hasHouse: false, hasHotel: false },
                 { color: "orange" as const, cardIds: [orangeWilds[1]!], hasHouse: false, hasHotel: false },
               ],
@@ -353,7 +353,7 @@ describe("PLAY_PROPERTY", () => {
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: orangeWilds[0]!, assignedColor: "orange" });
     const p1 = getPlayer(s, "p1");
-    const orangeGroups = p1.tableau.filter((g) => g.color === "orange");
+    const orangeGroups = p1.propertySets.filter((g) => g.color === "orange");
     expect(orangeGroups.length).toBe(2);
     const complete = orangeGroups.find((g) => g.cardIds.length === 3)!;
     const partial = orangeGroups.find((g) => g.cardIds.length !== 3)!;
@@ -466,7 +466,7 @@ describe("PLAY_HOUSE / PLAY_HOTEL", () => {
       cardId: built.house,
       targetColor: "red",
     });
-    const redGroup = getPlayer(s, "p1").tableau.find((g) => g.color === "red")!;
+    const redGroup = getPlayer(s, "p1").propertySets.find((g) => g.color === "red")!;
     expect(redGroup.hasHouse).toBe(true);
     expect(rentFor(getPlayer(s, "p1"), "red")).toBe(6 + 3);
   });
@@ -606,8 +606,8 @@ describe("REASSIGN_WILD", () => {
       toColor: "pink",
     });
     const p1 = getPlayer(s, "p1");
-    expect(p1.tableau.find((g) => g.color === "orange")).toBeUndefined();
-    expect(p1.tableau.find((g) => g.color === "pink")?.cardIds).toEqual([wild]);
+    expect(p1.propertySets.find((g) => g.color === "orange")).toBeUndefined();
+    expect(p1.propertySets.find((g) => g.color === "pink")?.cardIds).toEqual([wild]);
     // Reassignment is free — no decrement.
     expect(s.playsRemaining).toBe(2);
   });
@@ -649,7 +649,7 @@ describe("REASSIGN_WILD", () => {
       toColor: "pink",
     });
     const p1 = getPlayer(s, "p1");
-    expect(p1.tableau.find((g) => g.color === "pink")?.cardIds).toEqual([wild]);
+    expect(p1.propertySets.find((g) => g.color === "pink")?.cardIds).toEqual([wild]);
     expect(s.playsRemaining).toBe(0);
   });
 });
@@ -736,6 +736,6 @@ describe("rentFor / isComplete", () => {
     expect(rentFor(getPlayer(s, "p1"), "red")).toBe(3);
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: reds[2]!, assignedColor: "red" });
     expect(rentFor(getPlayer(s, "p1"), "red")).toBe(6);
-    expect(isComplete(getPlayer(s, "p1").tableau[0]!)).toBe(true);
+    expect(isComplete(getPlayer(s, "p1").propertySets[0]!)).toBe(true);
   });
 });

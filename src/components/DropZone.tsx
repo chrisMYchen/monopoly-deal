@@ -3,7 +3,7 @@
 import { useDroppable } from "@dnd-kit/core";
 
 // Generic droppable wrapper. Highlights with a soft pulse when a draggable is
-// hovering over it. Used for self-tableau, self-bank, opponent chips, and the
+// hovering over it. Used for self-properties, self-bank, opponent chips, and the
 // end-of-turn discard target.
 
 export function DropZone({

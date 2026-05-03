@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { PlayerAvatar } from "./PlayerAvatar";
-import { TableauView } from "./TableauView";
+import { PropertySetsView } from "./PropertySetsView";
 import { SET_DEFS } from "@/engine/cards";
 import { useGame } from "@/lib/gameStore";
 import { colorForPlayerId } from "@/lib/playerColor";
@@ -53,8 +53,8 @@ export function ResultsScreen() {
                   {completed} complete set{completed === 1 ? "" : "s"}
                 </span>
               </div>
-              {p.tableau.length > 0 ? (
-                <TableauView tableau={p.tableau} compact />
+              {p.propertySets.length > 0 ? (
+                <PropertySetsView propertySets={p.propertySets} compact />
               ) : (
                 <div className="text-xs opacity-50">no properties</div>
               )}
@@ -74,8 +74,8 @@ export function ResultsScreen() {
   );
 }
 
-function completedCount(p: { tableau: Array<{ color: string; cardIds: unknown[] }> }): number {
-  return p.tableau.filter(
+function completedCount(p: { propertySets: Array<{ color: string; cardIds: unknown[] }> }): number {
+  return p.propertySets.filter(
     (g) => g.cardIds.length >= SET_DEFS[g.color as keyof typeof SET_DEFS].complete,
   ).length;
 }

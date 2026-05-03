@@ -91,7 +91,7 @@ export function PlayerPicker({
 }
 
 // ---------------------------------------------------------------------------
-// OpponentPropertyPicker — pick a card from a specific opponent's tableau,
+// OpponentPropertyPicker — pick a card from a specific opponent's properties,
 // optionally constrained (e.g. exclude complete sets for Sly Deal).
 // ---------------------------------------------------------------------------
 
@@ -110,11 +110,11 @@ export function OpponentPropertyPicker({
 }) {
   return (
     <Modal title={title} onCancel={onCancel} testId="opponent-property-picker">
-      {opponent.tableau.length === 0 ? (
+      {opponent.propertySets.length === 0 ? (
         <p className="text-sm opacity-60">{opponent.name} has no properties.</p>
       ) : (
         <div className="flex flex-wrap gap-3">
-          {opponent.tableau.map((g, gi) =>
+          {opponent.propertySets.map((g, gi) =>
             g.cardIds.map((cid) => {
               const ok = predicate(gi, cid);
               return (
@@ -140,7 +140,7 @@ export function OpponentPropertyPicker({
 }
 
 // ---------------------------------------------------------------------------
-// MyPropertyPicker — pick a card from your own tableau (Forced Deal source)
+// MyPropertyPicker — pick a card from your own properties (Forced Deal source)
 // ---------------------------------------------------------------------------
 
 export function MyPropertyPicker({
@@ -158,11 +158,11 @@ export function MyPropertyPicker({
 }) {
   return (
     <Modal title={title} onCancel={onCancel} testId="my-property-picker">
-      {self.tableau.length === 0 ? (
+      {self.propertySets.length === 0 ? (
         <p className="text-sm opacity-60">You have no properties to swap.</p>
       ) : (
         <div className="flex flex-wrap gap-3">
-          {self.tableau.map((g, gi) =>
+          {self.propertySets.map((g, gi) =>
             g.cardIds.map((cid) => {
               const ok = predicate(gi, cid);
               return (
@@ -201,7 +201,7 @@ export function CompleteSetPicker({
   onPick: (color: SetColor, groupIdx: number) => void;
   onCancel: () => void;
 }) {
-  const completeGroups = opponent.tableau
+  const completeGroups = opponent.propertySets
     .map((g, gi) => ({ g, gi }))
     .filter(({ g }) => isComplete(g));
   return (
@@ -247,7 +247,7 @@ export function WildAssignPicker({
   title: string;
   subtitle?: string;
   options: SetColor[];
-  // Self's tableau is used to highlight which colors already have a group
+  // Self's properties are used to highlight which colors already have a group
   // (more useful target) vs. starting fresh. For rainbow wilds, only
   // existing-group colors are actually valid (rule: must attach).
   self?: ProjectedPlayer;
@@ -256,11 +256,11 @@ export function WildAssignPicker({
   onCancel: () => void;
 }) {
   const existingColors = new Set(
-    (self?.tableau ?? []).filter((g) => g.cardIds.length > 0).map((g) => g.color),
+    (self?.propertySets ?? []).filter((g) => g.cardIds.length > 0).map((g) => g.color),
   );
   // Compute "completes set" for each color so we can flag the strategic pick.
   function wouldCompleteSet(c: SetColor): boolean {
-    const g = self?.tableau.find((g) => g.color === c);
+    const g = self?.propertySets.find((g) => g.color === c);
     if (!g) return false;
     const def = SET_DEFS[c];
     return g.cardIds.length + 1 >= def.complete && g.cardIds.length < def.complete;
@@ -363,7 +363,7 @@ export function RentColorPicker({
 }
 
 // ---------------------------------------------------------------------------
-// PaymentDialog — pick cards from your bank/tableau totaling >= owed (or all)
+// PaymentDialog — pick cards from your bank/properties totaling >= owed (or all)
 // ---------------------------------------------------------------------------
 
 export function PaymentDialog({
@@ -379,7 +379,7 @@ export function PaymentDialog({
 }) {
   const [selected, setSelected] = useState<Set<CardId>>(new Set());
 
-  const totalAssetCount = payer.bank.length + payer.tableau.reduce((s, g) => s + g.cardIds.length, 0);
+  const totalAssetCount = payer.bank.length + payer.propertySets.reduce((s, g) => s + g.cardIds.length, 0);
   const offeredValue = Array.from(selected).reduce(
     (s, cid) => s + bankValueOf(cardById(cid)),
     0,
@@ -447,11 +447,11 @@ export function PaymentDialog({
         </section>
       )}
 
-      {payer.tableau.length > 0 && (
+      {payer.propertySets.length > 0 && (
         <section className="mb-3">
-          <h4 className="mb-1 text-sm uppercase tracking-widest opacity-60">Tableau</h4>
+          <h4 className="mb-1 text-sm uppercase tracking-widest opacity-60">Properties</h4>
           <div className="flex flex-wrap gap-2">
-            {payer.tableau.flatMap((g) =>
+            {payer.propertySets.flatMap((g) =>
               g.cardIds.map((cid) => (
                 <Card
                   key={cid}
@@ -484,7 +484,7 @@ export function PaymentDialog({
 function autoCover(payer: ProjectedPlayer, owed: number): Set<CardId> {
   const all: { id: CardId; value: number }[] = [
     ...payer.bank.map((id) => ({ id, value: bankValueOf(cardById(id)) })),
-    ...payer.tableau.flatMap((g) => g.cardIds.map((id) => ({ id, value: bankValueOf(cardById(id)) }))),
+    ...payer.propertySets.flatMap((g) => g.cardIds.map((id) => ({ id, value: bankValueOf(cardById(id)) }))),
   ];
   const total = all.reduce((s, c) => s + c.value, 0);
   if (total <= owed) return new Set(all.map((c) => c.id));
@@ -625,15 +625,15 @@ function nameOf(state: ProjectedGameState, pid: string): string {
 function describeDeclarationForSpectator(d: DeclaredAction, state: ProjectedGameState): string {
   switch (d.kind) {
     case "slyDeal":
-      return `${nameOf(state, d.sourceId)} → Swipe a property from ${nameOf(state, d.targetId)}`;
+      return `${nameOf(state, d.sourceId)} → Sly Deal from ${nameOf(state, d.targetId)}`;
     case "forcedDeal":
-      return `${nameOf(state, d.sourceId)} → Tribute swap with ${nameOf(state, d.targetId)}`;
+      return `${nameOf(state, d.sourceId)} → Forced Deal with ${nameOf(state, d.targetId)}`;
     case "dealBreaker":
-      return `${nameOf(state, d.sourceId)} → Hostile Takeover ${nameOf(state, d.targetId)}'s ${d.targetColor} set`;
+      return `${nameOf(state, d.sourceId)} → Deal Breaker on ${nameOf(state, d.targetId)}'s ${d.targetColor} set`;
     case "debtCollector":
-      return `${nameOf(state, d.sourceId)} → Eviction on ${nameOf(state, d.targetId)} ($5M)`;
+      return `${nameOf(state, d.sourceId)} → Debt Collector on ${nameOf(state, d.targetId)} ($5M)`;
     case "birthday":
-      return `${nameOf(state, d.sourceId)} → Tip Jar ($2M from everyone)`;
+      return `${nameOf(state, d.sourceId)} → It's My Birthday ($2M from everyone)`;
     case "rent":
       return `${nameOf(state, d.sourceId)} → Rent on ${d.color}${d.multiplier > 1 ? ` ×${d.multiplier}` : ""}`;
   }
@@ -707,7 +707,7 @@ export function HouseHotelTargetPicker({
   onPick: (color: SetColor) => void;
   onCancel: () => void;
 }) {
-  const candidates = self.tableau.filter((g) => {
+  const candidates = self.propertySets.filter((g) => {
     if (!STANDARD_COLORS.includes(g.color)) return false;
     if (g.cardIds.length < 5) {
       // We don't know the exact complete count here without cards.ts; defer to engine.

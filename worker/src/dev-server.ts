@@ -177,7 +177,7 @@ const server = Bun.serve({
                   name,
                   hand: [],
                   bank: [],
-                  tableau: [],
+                  propertySets: [],
                   connected: true,
                 });
               });

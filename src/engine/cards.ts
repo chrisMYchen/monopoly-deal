@@ -34,6 +34,21 @@ export const ALL_COLORS: SetColor[] = [
   "utility",
 ];
 
+// Display label per color group. Single source of truth — UI components and
+// the engine's structured log both pull from here so naming stays in sync.
+export const SET_LABEL: Record<SetColor, string> = {
+  brown: "Brown",
+  lightBlue: "Light Blue",
+  pink: "Pink",
+  orange: "Orange",
+  red: "Red",
+  yellow: "Yellow",
+  green: "Green",
+  darkBlue: "Dark Blue",
+  railroad: "Railroad",
+  utility: "Utility",
+};
+
 export const SET_DEFS: Record<SetColor, { complete: number; rentLadder: number[]; propertyValue: number }> = {
   brown: { complete: 2, rentLadder: [1, 2], propertyValue: 1 },
   lightBlue: { complete: 3, rentLadder: [1, 2, 3], propertyValue: 1 },

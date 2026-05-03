@@ -5,7 +5,7 @@
 
 import { SET_DEFS, bankValueOf, cardById, type CardId, type SetColor } from "./cards";
 import type { Action } from "./reduce";
-import type { GameState, Pending, Player, PlayerId, TableauGroup } from "./state";
+import type { GameState, Pending, Player, PlayerId, PropertySet } from "./state";
 
 // Who the timer is currently counting down on. Returns null when no one is
 // on the clock (lobby, ended, or a malformed state).
@@ -71,7 +71,7 @@ export function autoActionFor(state: GameState): Action | null {
 }
 
 // Pick the lowest-value subset of cards (bank first, then "least valuable"
-// tableau cards) that covers `amountOwed`. Avoids breaking complete sets when
+// property cards) that covers `amountOwed`. Avoids breaking complete sets when
 // a non-set-breaking selection still covers the debt. If the player can't
 // cover the debt, returns every asset they own (engine treats this as paying
 // what they have).
@@ -81,7 +81,7 @@ export function pickAutoPayment(payer: Player, amountOwed: number): CardId[] {
   );
   const looseProps: CardId[] = []; // properties in incomplete sets
   const completeProps: CardId[] = []; // properties in complete sets — last resort
-  for (const group of payer.tableau) {
+  for (const group of payer.propertySets) {
     const target = isComplete(group) ? completeProps : looseProps;
     for (const cid of group.cardIds) target.push(cid);
   }
@@ -120,6 +120,6 @@ export function pickAutoDiscard(hand: CardId[], count: number): CardId[] {
   return ordered.slice(0, count);
 }
 
-function isComplete(group: TableauGroup): boolean {
+function isComplete(group: PropertySet): boolean {
   return group.cardIds.length >= SET_DEFS[group.color as SetColor].complete;
 }

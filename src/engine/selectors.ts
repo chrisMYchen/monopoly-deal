@@ -9,12 +9,12 @@ import {
   type CardId,
   type SetColor,
 } from "./cards";
-import type { TableauGroup } from "./state";
+import type { PropertySet } from "./state";
 
 // How many distinct-color complete sets a player has. Win condition is >= 3.
-export function distinctCompletedSets(player: { tableau: TableauGroup[] }): number {
+export function distinctCompletedSets(player: { propertySets: PropertySet[] }): number {
   const colors = new Set<SetColor>();
-  for (const g of player.tableau) {
+  for (const g of player.propertySets) {
     if (g.cardIds.length >= SET_DEFS[g.color].complete) {
       colors.add(g.color);
     }
@@ -24,7 +24,7 @@ export function distinctCompletedSets(player: { tableau: TableauGroup[] }): numb
 
 // Rent for a single group, including House/Hotel modifiers. Returns 0 if the
 // group is empty or color has no entry on the ladder for current count.
-export function rentForGroup(group: TableauGroup): number {
+export function rentForGroup(group: PropertySet): number {
   if (group.cardIds.length === 0) return 0;
   const def = SET_DEFS[group.color];
   const ladderIdx = Math.min(group.cardIds.length, def.complete) - 1;
@@ -34,11 +34,11 @@ export function rentForGroup(group: TableauGroup): number {
   return rent;
 }
 
-// Total cash value of bank + tableau (matches engine's netWorth).
-export function netWorth(player: { bank: CardId[]; tableau: TableauGroup[] }): number {
+// Total cash value of bank + properties (matches engine's netWorth).
+export function netWorth(player: { bank: CardId[]; propertySets: PropertySet[] }): number {
   let total = 0;
   for (const cid of player.bank) total += bankValueOf(cardById(cid));
-  for (const g of player.tableau) {
+  for (const g of player.propertySets) {
     for (const cid of g.cardIds) total += bankValueOf(cardById(cid));
     if (g.hasHouse) total += 3;
     if (g.hasHotel) total += 4;

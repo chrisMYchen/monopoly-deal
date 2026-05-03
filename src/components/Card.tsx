@@ -8,6 +8,7 @@ import {
   ACTION_DESCRIPTIONS,
   ACTION_LABELS,
   SET_DEFS,
+  SET_LABEL,
   cardById,
   type Card as CardData,
   type CardId,
@@ -25,20 +26,6 @@ const SET_BG: Record<SetColor, string> = {
   darkBlue: "bg-[var(--color-set-dark-blue)]",
   railroad: "bg-[var(--color-set-railroad)]",
   utility: "bg-[var(--color-set-utility)]",
-};
-
-// Display label per color group, shown on the property card's color band.
-const SET_LABEL: Record<SetColor, string> = {
-  brown: "Brown",
-  lightBlue: "Light Blue",
-  pink: "Pink",
-  orange: "Orange",
-  red: "Red",
-  yellow: "Yellow",
-  green: "Green",
-  darkBlue: "Dark Blue",
-  railroad: "Railroad",
-  utility: "Utility",
 };
 
 // Whether the color band is dark enough that we should overlay light text on it.
@@ -70,7 +57,7 @@ export function Card({
   onClick,
   ariaLabel,
   // When `animated` is true, the card uses Motion's `layoutId` so movements
-  // between hand → tableau → discard / opponent zones tween smoothly.
+  // between hand → properties → discard / opponent zones tween smoothly.
   // Pass `animated={false}` for cards rendered inside modals/pickers where
   // multiple instances of the same id can co-exist (which would confuse Motion).
   animated = true,

@@ -4,6 +4,7 @@ import {
   ALL_COLORS,
   DECK,
   SET_DEFS,
+  SET_LABEL,
   STANDARD_COLORS,
   bankValueOf,
   cardById,
@@ -22,7 +23,7 @@ import {
   type Player,
   type PlayerId,
   type RoomSettings,
-  type TableauGroup,
+  type PropertySet,
 } from "./state";
 import { shuffle } from "./rng";
 
@@ -195,7 +196,7 @@ function startGame(
     name: p.name,
     hand: [],
     bank: [],
-    tableau: [],
+    propertySets: [],
     connected: true,
   }));
 
@@ -259,20 +260,20 @@ function playProperty(
       if (card.set !== a.assignedColor) {
         throw new RuleError("solid property must be played to its own color");
       }
-      placeIntoTableau(player, a.cardId, card.set);
+      placeIntoProperties(player, a.cardId, card.set);
       break;
     case "wild2":
       if (!card.sets.includes(a.assignedColor)) {
         throw new RuleError("wild2 cannot be assigned to this color");
       }
-      placeIntoTableau(player, a.cardId, a.assignedColor);
+      placeIntoProperties(player, a.cardId, a.assignedColor);
       break;
     case "wild10":
       if (!ALL_COLORS.includes(a.assignedColor)) {
         throw new RuleError("invalid color for rainbow wild");
       }
       assertRainbowAttachable(player, a.assignedColor);
-      placeIntoTableau(player, a.cardId, a.assignedColor);
+      placeIntoProperties(player, a.cardId, a.assignedColor);
       break;
     default:
       throw new RuleError("not a property-class card");
@@ -299,7 +300,7 @@ function assertRainbowAttachable(player: Player, color: SetColor): void {
   }
 }
 
-function placeIntoTableau(player: Player, cardId: CardId, color: SetColor): void {
+function placeIntoProperties(player: Player, cardId: CardId, color: SetColor): void {
   const def = SET_DEFS[color];
   // One set per color. New cards always extend the existing same-color group;
   // a complete set growing past `def.complete` (overcomplete: 4/3, 5/3, etc.)
@@ -308,8 +309,8 @@ function placeIntoTableau(player: Player, cardId: CardId, color: SetColor): void
   // same-color groups already exist (e.g., from a Deal Breaker steal stacked
   // on top of an existing set), prefer attaching to a partial group so plays
   // progress toward completion instead of bloating a complete one.
-  const sameColor = player.tableau.filter((g) => g.color === color);
-  let target: TableauGroup | undefined;
+  const sameColor = player.propertySets.filter((g) => g.color === color);
+  let target: PropertySet | undefined;
   if (sameColor.length > 0) {
     const partials = sameColor.filter((g) => g.cardIds.length < def.complete);
     if (partials.length > 0) {
@@ -322,7 +323,7 @@ function placeIntoTableau(player: Player, cardId: CardId, color: SetColor): void
   }
   if (!target) {
     target = { color, cardIds: [], hasHouse: false, hasHotel: false };
-    player.tableau.push(target);
+    player.propertySets.push(target);
   }
   target.cardIds.push(cardId);
 }
@@ -463,7 +464,7 @@ function reassignWild(
 
   const fromIdx = findGroupIndex(player, a.fromColor);
   if (fromIdx === -1) throw new RuleError("source group missing");
-  const fromGroup = player.tableau[fromIdx]!;
+  const fromGroup = player.propertySets[fromIdx]!;
   const cardIdx = fromGroup.cardIds.indexOf(a.cardId);
   if (cardIdx === -1) throw new RuleError("wild not in source group");
 
@@ -473,7 +474,7 @@ function reassignWild(
   if (card.kind === "wild10") {
     assertRainbowAttachable(player, a.toColor);
   }
-  placeIntoTableau(player, a.cardId, a.toColor);
+  placeIntoProperties(player, a.cardId, a.toColor);
 
   s.log.push({
     at: s.currentTurn,
@@ -494,9 +495,9 @@ function playSlyDeal(
   const { source, card } = startTargetedAction(s, a.playerId, a.cardId, "slyDeal");
   const target = playerById(s, a.targetPlayerId);
   if (target.id === source.id) throw new RuleError("cannot target yourself");
-  const { groupIdx } = findCardInTableau(target, a.targetCardId);
-  if (groupIdx === -1) throw new RuleError("target card not in opponent's tableau");
-  const group = target.tableau[groupIdx]!;
+  const { groupIdx } = findCardInProperties(target, a.targetCardId);
+  if (groupIdx === -1) throw new RuleError("target card not in opponent's properties");
+  const group = target.propertySets[groupIdx]!;
   if (isGroupComplete(group)) throw new RuleError("cannot Sly Deal a complete set");
 
   removeFromHand(source, a.cardId);
@@ -517,16 +518,16 @@ function playForcedDeal(
   const target = playerById(s, a.targetPlayerId);
   if (target.id === source.id) throw new RuleError("cannot target yourself");
 
-  // Validate "my" card is in source's tableau and not in a complete set.
-  const my = findCardInTableau(source, a.myCardId);
-  if (my.groupIdx === -1) throw new RuleError("my card not in your tableau");
-  if (isGroupComplete(source.tableau[my.groupIdx]!)) {
+  // Validate "my" card is in source's properties and not in a complete set.
+  const my = findCardInProperties(source, a.myCardId);
+  if (my.groupIdx === -1) throw new RuleError("my card not in your properties");
+  if (isGroupComplete(source.propertySets[my.groupIdx]!)) {
     throw new RuleError("cannot Forced Deal from your own complete set");
   }
   // Validate target card.
-  const t = findCardInTableau(target, a.targetCardId);
-  if (t.groupIdx === -1) throw new RuleError("target card not in opponent's tableau");
-  if (isGroupComplete(target.tableau[t.groupIdx]!)) {
+  const t = findCardInProperties(target, a.targetCardId);
+  if (t.groupIdx === -1) throw new RuleError("target card not in opponent's properties");
+  if (isGroupComplete(target.propertySets[t.groupIdx]!)) {
     throw new RuleError("cannot Forced Deal opponent's complete set");
   }
 
@@ -553,7 +554,7 @@ function playDealBreaker(
   const target = playerById(s, a.targetPlayerId);
   if (target.id === source.id) throw new RuleError("cannot target yourself");
 
-  const group = target.tableau[a.targetGroupIdx];
+  const group = target.propertySets[a.targetGroupIdx];
   if (!group || group.color !== a.targetColor) {
     throw new RuleError("target group not found");
   }
@@ -784,13 +785,13 @@ function pay(
   const payer = playerById(s, a.playerId);
   const payee = playerById(s, p.payeeId);
 
-  // Validate selected cards are all in payer's bank or tableau.
+  // Validate selected cards are all in payer's bank or properties.
   for (const cid of a.cardIds) {
     const inBank = payer.bank.includes(cid);
-    let inTableau = false;
-    for (const g of payer.tableau) if (g.cardIds.includes(cid)) inTableau = true;
-    if (!inBank && !inTableau) {
-      throw new RuleError(`card ${cid} not in payer's bank or tableau`);
+    let inProperties = false;
+    for (const g of payer.propertySets) if (g.cardIds.includes(cid)) inProperties = true;
+    if (!inBank && !inProperties) {
+      throw new RuleError(`card ${cid} not in payer's bank or properties`);
     }
   }
   // Validate uniqueness.
@@ -811,7 +812,7 @@ function pay(
 
   // Per Hasbro: payer's max-payable equals their net worth; if amountOwed
   // exceeds that, payer pays all they have.
-  const netWorthBefore = payer.bank.length + payer.tableau.reduce((s2, g) => s2 + g.cardIds.length, 0);
+  const netWorthBefore = payer.bank.length + payer.propertySets.reduce((s2, g) => s2 + g.cardIds.length, 0);
 
   if (netWorthBefore === 0) {
     // Truly empty — debt forgiven.
@@ -825,11 +826,11 @@ function pay(
 
   // If undercoverage but payer still has assets, all chosen cards must be paid;
   // we require that the offered set EITHER >= owed, OR includes ALL of payer's
-  // bank+tableau (i.e. they paid everything they have).
+  // bank + properties (i.e. they paid everything they have).
   const totalAssetCount =
-    payer.bank.length + payer.tableau.reduce((s2, g) => s2 + g.cardIds.length, 0);
-  const allInBankOrTableau = a.cardIds.length === totalAssetCount;
-  if (offered < p.amountOwed && !allInBankOrTableau) {
+    payer.bank.length + payer.propertySets.reduce((s2, g) => s2 + g.cardIds.length, 0);
+  const allInBankOrProperties = a.cardIds.length === totalAssetCount;
+  if (offered < p.amountOwed && !allInBankOrProperties) {
     throw new RuleError(
       `payment of $${offered}M is short of $${p.amountOwed}M and not all assets offered`,
     );
@@ -886,36 +887,51 @@ function applySingleEffect(
   const defender = playerById(s, defenderId);
   switch (declaration.kind) {
     case "slyDeal": {
-      const t = findCardInTableau(defender, declaration.targetCardId);
+      const t = findCardInProperties(defender, declaration.targetCardId);
       if (t.groupIdx === -1) return; // already moved? skip silently
-      transferTableauCard(s, defender, source, declaration.targetCardId);
+      transferPropertyCard(s, defender, source, declaration.targetCardId);
       s.log.push({ at: s.currentTurn, message: `${source.name} stole a property from ${defender.name}.` });
       return;
     }
     case "forcedDeal": {
       // Swap the two cards.
-      const fromMy = findCardInTableau(source, declaration.sourceCardId);
-      const fromTheirs = findCardInTableau(defender, declaration.targetCardId);
+      const fromMy = findCardInProperties(source, declaration.sourceCardId);
+      const fromTheirs = findCardInProperties(defender, declaration.targetCardId);
       if (fromMy.groupIdx === -1 || fromTheirs.groupIdx === -1) return;
-      transferTableauCard(s, source, defender, declaration.sourceCardId);
-      transferTableauCard(s, defender, source, declaration.targetCardId);
-      s.log.push({ at: s.currentTurn, message: `${source.name} swapped properties with ${defender.name}.` });
+      const gaveFromColor = source.propertySets[fromMy.groupIdx]!.color;
+      const tookFromColor = defender.propertySets[fromTheirs.groupIdx]!.color;
+      const gaveLabel = describeCardForLog(declaration.sourceCardId, gaveFromColor);
+      const tookLabel = describeCardForLog(declaration.targetCardId, tookFromColor);
+      transferPropertyCard(s, source, defender, declaration.sourceCardId);
+      transferPropertyCard(s, defender, source, declaration.targetCardId);
+      s.log.push({
+        at: s.currentTurn,
+        message: `${source.name} gave ${gaveLabel} and took ${tookLabel} from ${defender.name}.`,
+        swap: {
+          sourceId: source.id,
+          targetId: defender.id,
+          gaveCardId: declaration.sourceCardId,
+          tookCardId: declaration.targetCardId,
+          gaveFromColor,
+          tookFromColor,
+        },
+      });
       return;
     }
     case "dealBreaker": {
       // Move all card ids in the group + house/hotel state to source.
       const groupIdx = declaration.targetGroupIdx;
-      const group = defender.tableau[groupIdx];
+      const group = defender.propertySets[groupIdx];
       if (!group) return;
       // Place a fresh group on source's side preserving house/hotel.
-      const newGroup: TableauGroup = {
+      const newGroup: PropertySet = {
         color: group.color,
         cardIds: [...group.cardIds],
         hasHouse: group.hasHouse,
         hasHotel: group.hasHotel,
       };
-      source.tableau.push(newGroup);
-      defender.tableau.splice(groupIdx, 1);
+      source.propertySets.push(newGroup);
+      defender.propertySets.splice(groupIdx, 1);
       s.log.push({
         at: s.currentTurn,
         message: `${source.name} stole ${defender.name}'s ${group.color} set.`,
@@ -1159,36 +1175,47 @@ function removeFromHand(player: Player, cardId: CardId): void {
   player.hand.splice(i, 1);
 }
 
-function findCardInTableau(player: Player, cardId: CardId): { groupIdx: number; cardIdx: number } {
-  for (let g = 0; g < player.tableau.length; g++) {
-    const idx = player.tableau[g]!.cardIds.indexOf(cardId);
+// Compact, human-readable label for a property card used in the structured
+// log. Properties carry their canonical name; wilds borrow the color of the
+// group they currently sit in so log readers can disambiguate them.
+function describeCardForLog(cardId: CardId, fromColor: SetColor): string {
+  const c = cardById(cardId);
+  if (c.kind === "property") return `${c.name} (${SET_LABEL[fromColor]})`;
+  if (c.kind === "wild2") return `${SET_LABEL[fromColor]} Wild`;
+  if (c.kind === "wild10") return `${SET_LABEL[fromColor]} ★ Wild`;
+  return "card";
+}
+
+function findCardInProperties(player: Player, cardId: CardId): { groupIdx: number; cardIdx: number } {
+  for (let g = 0; g < player.propertySets.length; g++) {
+    const idx = player.propertySets[g]!.cardIds.indexOf(cardId);
     if (idx >= 0) return { groupIdx: g, cardIdx: idx };
   }
   return { groupIdx: -1, cardIdx: -1 };
 }
 
-function isGroupComplete(group: TableauGroup): boolean {
+function isGroupComplete(group: PropertySet): boolean {
   return group.cardIds.length >= SET_DEFS[group.color].complete;
 }
 
-// Move a single tableau card from one player to another, preserving wild
+// Move a single property card from one player to another, preserving wild
 // color choice (the receiver can reassign on their next turn). For solid
 // properties, the color is fixed by the card itself.
-function transferTableauCard(
+function transferPropertyCard(
   s: GameState,
   from: Player,
   to: Player,
   cardId: CardId,
 ): void {
-  const where = findCardInTableau(from, cardId);
+  const where = findCardInProperties(from, cardId);
   if (where.groupIdx === -1) return;
-  const group = from.tableau[where.groupIdx]!;
+  const group = from.propertySets[where.groupIdx]!;
   group.cardIds.splice(where.cardIdx, 1);
   detachHouseHotelIfBroken(s, from, where.groupIdx);
 
   const card = cardById(cardId);
   // Pick destination color. For solid: card.set. For wild2: keep current group's
-  // color (pre-removal), but it's now in a different player's tableau, so the
+  // color (pre-removal), but it's now in a different player's properties, so the
   // receiver may reassign on their turn. We default to the original color here
   // and let REASSIGN_WILD handle later moves. For wild10, similarly.
   let destColor: SetColor;
@@ -1201,26 +1228,26 @@ function transferTableauCard(
   // destination has no such group, it's still placed (forming a new group of
   // that color, even though "rainbow alone" rule would disallow on PLAY). The
   // rule applies on play, not on receipt; we mirror digital convention here.
-  placeIntoTableau(to, cardId, destColor);
+  placeIntoProperties(to, cardId, destColor);
 }
 
 function transferOneCard(s: GameState, from: Player, to: Player, cardId: CardId): void {
-  // Could be in bank or tableau.
+  // Could be in bank or properties.
   const bankIdx = from.bank.indexOf(cardId);
   if (bankIdx >= 0) {
     from.bank.splice(bankIdx, 1);
     const card = cardById(cardId);
     if (card.kind === "property" || card.kind === "wild2" || card.kind === "wild10") {
-      // Pay-with-property: lands in receiver's tableau.
+      // Pay-with-property: lands in receiver's properties.
       const color = card.kind === "property" ? card.set : "brown"; // wilds default; receiver re-assigns
-      placeIntoTableau(to, cardId, color);
+      placeIntoProperties(to, cardId, color);
     } else {
       to.bank.push(cardId);
     }
     return;
   }
-  // Tableau path.
-  transferTableauCard(s, from, to, cardId);
+  // Properties path.
+  transferPropertyCard(s, from, to, cardId);
 }
 
 // Pull `count` cards into `player`. If the draw pile runs dry, reshuffle the
@@ -1245,7 +1272,7 @@ function checkWin(s: GameState): void {
   if (s.pending !== null) return;
   for (const player of s.players) {
     const completedColors = new Set<SetColor>();
-    for (const group of player.tableau) {
+    for (const group of player.propertySets) {
       if (group.cardIds.length >= SET_DEFS[group.color].complete) {
         completedColors.add(group.color);
       }
@@ -1267,7 +1294,7 @@ function detachHouseHotelIfBroken(
   player: Player,
   groupIdx: number,
 ): void {
-  const group = player.tableau[groupIdx];
+  const group = player.propertySets[groupIdx];
   if (!group) return;
   const def = SET_DEFS[group.color];
   if (group.cardIds.length >= def.complete) return;
@@ -1276,7 +1303,7 @@ function detachHouseHotelIfBroken(
   for (const p of s.players) {
     for (const c of p.hand) inPlay.add(c);
     for (const c of p.bank) inPlay.add(c);
-    for (const g of p.tableau) for (const c of g.cardIds) inPlay.add(c);
+    for (const g of p.propertySets) for (const c of g.cardIds) inPlay.add(c);
   }
   for (const c of s.drawPile) inPlay.add(c);
   for (const c of s.discardPile) inPlay.add(c);
@@ -1300,7 +1327,7 @@ function detachHouseHotelIfBroken(
   }
 
   if (group.cardIds.length === 0) {
-    player.tableau.splice(groupIdx, 1);
+    player.propertySets.splice(groupIdx, 1);
   }
 }
 
@@ -1337,7 +1364,7 @@ export function initialLobby(): GameState {
 // Selectors
 // ---------------------------------------------------------------------------
 
-export function isComplete(group: TableauGroup): boolean {
+export function isComplete(group: PropertySet): boolean {
   return group.cardIds.length >= SET_DEFS[group.color].complete;
 }
 
@@ -1356,7 +1383,7 @@ export function rentFor(player: Player, color: SetColor): number {
 export function netWorth(player: Player): number {
   let total = 0;
   for (const cid of player.bank) total += bankValueOf(cardById(cid));
-  for (const group of player.tableau) {
+  for (const group of player.propertySets) {
     for (const cid of group.cardIds) total += bankValueOf(cardById(cid));
     if (group.hasHouse) total += 3;
     if (group.hasHotel) total += 4;
