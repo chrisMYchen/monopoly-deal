@@ -490,7 +490,7 @@ describe("END_TURN", () => {
 // ---------------------------------------------------------------------------
 
 describe("REASSIGN_WILD", () => {
-  it("moves a wild2 from one valid color to the other", () => {
+  it("moves a wild2 from one valid color to the other (free, no play consumed)", () => {
     let s = newGame();
     const wild = findCard(
       (c) => c.kind === "wild2" && c.sets[0] === "orange" && c.sets[1] === "pink",
@@ -503,6 +503,7 @@ describe("REASSIGN_WILD", () => {
       cardId: wild,
       assignedColor: "orange",
     });
+    expect(s.playsRemaining).toBe(2);
     s = applyAction(s, {
       type: "REASSIGN_WILD",
       playerId: "p1",
@@ -513,7 +514,49 @@ describe("REASSIGN_WILD", () => {
     const p1 = getPlayer(s, "p1");
     expect(p1.tableau.find((g) => g.color === "orange")).toBeUndefined();
     expect(p1.tableau.find((g) => g.color === "pink")?.cardIds).toEqual([wild]);
-    expect(s.playsRemaining).toBe(1);
+    // Reassignment is free — no decrement.
+    expect(s.playsRemaining).toBe(2);
+  });
+
+  it("can reassign even with 0 plays remaining (any time during your turn)", () => {
+    let s = newGame();
+    const wild = findCard(
+      (c) => c.kind === "wild2" && c.sets[0] === "orange" && c.sets[1] === "pink",
+    );
+    const oranges = allCardsOfKind((c) => c.kind === "property" && c.set === "orange");
+    s = injectHand(s, "p1", [wild, oranges[0]!, oranges[1]!]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    // Burn all 3 plays placing properties.
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: oranges[0]!,
+      assignedColor: "orange",
+    });
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: oranges[1]!,
+      assignedColor: "orange",
+    });
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: wild,
+      assignedColor: "orange",
+    });
+    expect(s.playsRemaining).toBe(0);
+    // Should still be allowed to reassign with 0 plays left.
+    s = applyAction(s, {
+      type: "REASSIGN_WILD",
+      playerId: "p1",
+      cardId: wild,
+      fromColor: "orange",
+      toColor: "pink",
+    });
+    const p1 = getPlayer(s, "p1");
+    expect(p1.tableau.find((g) => g.color === "pink")?.cardIds).toEqual([wild]);
+    expect(s.playsRemaining).toBe(0);
   });
 });
 

@@ -426,10 +426,11 @@ function reassignWild(
   s: GameState,
   a: Extract<Action, { type: "REASSIGN_WILD" }>,
 ): void {
+  // Reassignment is free in real Monopoly Deal — it doesn't consume one of
+  // the 3 plays per turn, so no playsRemaining check or decrement here.
   assertPlayingPhase(s);
   assertActorsTurn(s, a.playerId);
   assertHasDrawn(s);
-  assertPlaysRemaining(s);
 
   const player = currentPlayer(s);
   const card = cardById(a.cardId);
@@ -460,7 +461,6 @@ function reassignWild(
   }
   placeIntoTableau(player, a.cardId, a.toColor);
 
-  s.playsRemaining -= 1;
   s.log.push({
     at: s.currentTurn,
     message: `${player.name} moved a wild from ${a.fromColor} to ${a.toColor}.`,

@@ -563,6 +563,95 @@ async function run(): Promise<void> {
   });
 
   // -----------------------------------------------------------------------
+  // Wildcard reassignment — free, any time during the turn
+  // -----------------------------------------------------------------------
+  await scenario("reassign wild2 is free and works any time during the turn", async () => {
+    const code = await createRoom();
+    const [alice, bob] = await joinAll(code, [
+      { sessionId: ALICE, name: "Alice" },
+      { sessionId: BOB, name: "Bob" },
+    ]);
+    const orangePinkWild = findCard(
+      (c) => c.kind === "wild2" && c.sets[0] === "orange" && c.sets[1] === "pink",
+    );
+    // Place the wild on orange and burn all 3 plays first to confirm we can
+    // still reassign with 0 plays remaining — the user-visible behavior.
+    await injectState(code, buildState({
+      players: [
+        {
+          id: ALICE,
+          name: "Alice",
+          tableau: [{ color: "orange", cardIds: [orangePinkWild] }],
+        },
+        { id: BOB, name: "Bob" },
+      ],
+      playsRemaining: 0,
+    }));
+    alice!.send({
+      type: "action",
+      action: {
+        type: "REASSIGN_WILD",
+        playerId: ALICE,
+        cardId: orangePinkWild,
+        fromColor: "orange",
+        toColor: "pink",
+      },
+    });
+    const final = await waitForState(code, (s) => {
+      const a = s.players.find((p) => p.id === ALICE)!;
+      return a.tableau.some((g) => g.color === "pink" && g.cardIds.includes(orangePinkWild));
+    });
+    const aliceP = final.players.find((p) => p.id === ALICE)!;
+    if (aliceP.tableau.find((g) => g.color === "orange") !== undefined) {
+      throw new Error("orange group should be empty after reassign");
+    }
+    if (final.playsRemaining !== 0) {
+      throw new Error(`playsRemaining should stay at 0, got ${final.playsRemaining}`);
+    }
+    alice!.close(); bob!.close();
+  });
+
+  await scenario("reassign wild does not consume a play", async () => {
+    const code = await createRoom();
+    const [alice, bob] = await joinAll(code, [
+      { sessionId: ALICE, name: "Alice" },
+      { sessionId: BOB, name: "Bob" },
+    ]);
+    const orangePinkWild = findCard(
+      (c) => c.kind === "wild2" && c.sets[0] === "orange" && c.sets[1] === "pink",
+    );
+    await injectState(code, buildState({
+      players: [
+        {
+          id: ALICE,
+          name: "Alice",
+          tableau: [{ color: "orange", cardIds: [orangePinkWild] }],
+        },
+        { id: BOB, name: "Bob" },
+      ],
+      playsRemaining: 3,
+    }));
+    alice!.send({
+      type: "action",
+      action: {
+        type: "REASSIGN_WILD",
+        playerId: ALICE,
+        cardId: orangePinkWild,
+        fromColor: "orange",
+        toColor: "pink",
+      },
+    });
+    const final = await waitForState(code, (s) => {
+      const a = s.players.find((p) => p.id === ALICE)!;
+      return a.tableau.some((g) => g.color === "pink" && g.cardIds.includes(orangePinkWild));
+    });
+    if (final.playsRemaining !== 3) {
+      throw new Error(`playsRemaining should stay at 3 (free), got ${final.playsRemaining}`);
+    }
+    alice!.close(); bob!.close();
+  });
+
+  // -----------------------------------------------------------------------
   // Server-side authority — playerId mismatch rejection
   // -----------------------------------------------------------------------
   await scenario("server rejects spoofed playerId", async () => {

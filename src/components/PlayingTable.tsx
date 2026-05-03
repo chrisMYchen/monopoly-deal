@@ -352,7 +352,7 @@ function PlayingTableInner({
       <Wrapper state={state}>
         <WildAssignPicker
           title={`Move wild from ${draft.fromColor} to…`}
-          subtitle="Reassigning a wild costs 1 play."
+          subtitle="Free — does not use a play."
           options={draft.allowed.filter((c) => c !== draft.fromColor)}
           self={self}
           isRainbow={isRainbow}
@@ -623,6 +623,17 @@ function PlayingTableInner({
   // For non-active players who are NOT the JSN responder / payer, show a
   // spectator overlay describing what's blocking the game.
 
+  // Tap-to-reassign for placed wildcards. Free in real Monopoly Deal so it
+  // doesn't gate on playsRemaining — only on it being your active turn with
+  // no pending window.
+  const onWildClick = (cardId: CardId, fromColor: SetColor) => {
+    if (!isMyTurn || state.pending !== null || !state.hasDrawnThisTurn) return;
+    const card = cardById(cardId);
+    if (card.kind !== "wild2" && card.kind !== "wild10") return;
+    const allowed = card.kind === "wild2" ? (card.sets as SetColor[]) : ALL_COLORS;
+    setDraft({ kind: "wild-reassign", cardId, fromColor, allowed });
+  };
+
   return (
     <Wrapper state={state}>
       {state.pending !== null && (
@@ -636,6 +647,7 @@ function PlayingTableInner({
         isMyTurn={isMyTurn}
         selectedCardId={selectedCardId}
         setSelectedCardId={setSelectedCardId}
+        onWildClick={onWildClick}
       />
       {isMyTurn && state.pending === null && (
         <ActionBar
@@ -881,7 +893,7 @@ function SelfArea({
       </div>
       {isMyTurn && wildIds.size > 0 && (
         <p className="text-[11px] opacity-50" aria-live="polite">
-          Tap a wild card in your tableau to reassign its color (costs 1 play).
+          Tap a wild card in your tableau to reassign its color (free).
         </p>
       )}
       <DropZone

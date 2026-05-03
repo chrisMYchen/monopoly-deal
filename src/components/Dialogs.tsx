@@ -245,7 +245,6 @@ export function WildAssignPicker({
   onCancel,
 }: {
   title: string;
-  // Optional descriptive line below the title (e.g., "Reassigning costs 1 play").
   subtitle?: string;
   options: SetColor[];
   // Self's tableau is used to highlight which colors already have a group

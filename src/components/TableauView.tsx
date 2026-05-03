@@ -84,8 +84,8 @@ export function TableauView({
                         className="pointer-events-none absolute -right-1 -top-1 rounded-full border border-zinc-900 bg-yellow-300 px-1 text-[8px] font-bold uppercase tracking-widest text-zinc-900 shadow"
                         title={
                           c.kind === "wild2"
-                            ? `Wild (${c.sets[0]}/${c.sets[1]}) — tap on your turn to reassign`
-                            : "Rainbow wild — tap on your turn to reassign"
+                            ? `Wild (${c.sets[0]}/${c.sets[1]}) — tap on your turn to reassign (free)`
+                            : "Rainbow wild — tap on your turn to reassign (free)"
                         }
                       >
                         ★
