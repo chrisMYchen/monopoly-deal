@@ -19,6 +19,7 @@ import {
   findGroupIndex,
   type DeclaredAction,
   type GameState,
+  type LogEvent,
   type Pending,
   type Player,
   type PlayerId,
@@ -93,6 +94,56 @@ export class RuleError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "RuleError";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Set-completion delta tracking (for animation cues)
+// ---------------------------------------------------------------------------
+
+// Snapshot every player's currently-complete set colors. The reducer captures
+// this before any operation that can change tableau composition and diffs
+// against it afterward to emit setComplete / setBroken events. Pure data,
+// engine-side; the client uses these to fire celebration / shake effects.
+type CompletionSnapshot = Map<PlayerId, Set<SetColor>>;
+
+function snapshotCompletions(s: GameState): CompletionSnapshot {
+  const out: CompletionSnapshot = new Map();
+  for (const p of s.players) {
+    const colors = new Set<SetColor>();
+    for (const g of p.propertySets) {
+      if (g.cardIds.length >= SET_DEFS[g.color].complete) colors.add(g.color);
+    }
+    out.set(p.id, colors);
+  }
+  return out;
+}
+
+function emitCompletionDeltas(s: GameState, before: CompletionSnapshot): void {
+  for (const p of s.players) {
+    const beforeColors = before.get(p.id) ?? new Set<SetColor>();
+    const afterColors = new Set<SetColor>();
+    for (const g of p.propertySets) {
+      if (g.cardIds.length >= SET_DEFS[g.color].complete) afterColors.add(g.color);
+    }
+    for (const color of afterColors) {
+      if (!beforeColors.has(color)) {
+        s.log.push({
+          at: s.currentTurn,
+          message: `${p.name} completed the ${color} set!`,
+          event: { kind: "setComplete", actorId: p.id, color },
+        });
+      }
+    }
+    for (const color of beforeColors) {
+      if (!afterColors.has(color)) {
+        s.log.push({
+          at: s.currentTurn,
+          message: `${p.name}'s ${color} set was broken.`,
+          event: { kind: "setBroken", actorId: p.id, color },
+        });
+      }
+    }
   }
 }
 
@@ -215,7 +266,13 @@ function startGame(
   s.hasDrawnThisTurn = false;
   s.pending = null;
   s.phase = "playing";
-  s.log = [{ at: 0, message: `Game started with ${s.players.length} players.` }];
+  s.log = [
+    {
+      at: 0,
+      message: `Game started with ${s.players.length} players.`,
+      event: { kind: "gameStart", count: s.players.length },
+    },
+  ];
   s.rngState = nextSeed;
 }
 
@@ -235,7 +292,11 @@ function drawTurnStart(
   const drawCount = player.hand.length === 0 ? EMPTY_HAND_DRAW : TURN_DRAW;
   drawCardsInto(s, player, drawCount);
   s.hasDrawnThisTurn = true;
-  s.log.push({ at: s.currentTurn, message: `${player.name} drew ${drawCount}.` });
+  s.log.push({
+    at: s.currentTurn,
+    message: `${player.name} drew ${drawCount}.`,
+    event: { kind: "draw", actorId: player.id, count: drawCount },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +312,7 @@ function playProperty(
   assertHasDrawn(s);
   assertPlaysRemaining(s);
 
+  const before = snapshotCompletions(s);
   const player = currentPlayer(s);
   removeFromHand(player, a.cardId);
 
@@ -283,8 +345,15 @@ function playProperty(
   s.log.push({
     at: s.currentTurn,
     message: `${player.name} placed a property in ${a.assignedColor}.`,
+    event: {
+      kind: "playProperty",
+      actorId: player.id,
+      cardId: a.cardId,
+      color: a.assignedColor,
+    },
   });
 
+  emitCompletionDeltas(s, before);
   checkWin(s);
 }
 
@@ -357,6 +426,12 @@ function playAsMoney(
   s.log.push({
     at: s.currentTurn,
     message: `${player.name} banked $${bankValueOf(card)}M.`,
+    event: {
+      kind: "playMoney",
+      actorId: player.id,
+      cardId: a.cardId,
+      amount: bankValueOf(card),
+    },
   });
 }
 
@@ -404,6 +479,12 @@ function playHouseOrHotel(
   s.log.push({
     at: s.currentTurn,
     message: `${player.name} placed a ${expected} on ${a.targetColor}.`,
+    event: {
+      kind: expected,
+      actorId: player.id,
+      cardId: a.cardId,
+      color: a.targetColor,
+    },
   });
 }
 
@@ -430,7 +511,11 @@ function playPassGo(
   s.discardPile.push(a.cardId);
   drawCardsInto(s, player, 2);
   s.playsRemaining -= 1;
-  s.log.push({ at: s.currentTurn, message: `${player.name} played Pass Go (+2).` });
+  s.log.push({
+    at: s.currentTurn,
+    message: `${player.name} played Pass Go (+2).`,
+    event: { kind: "passGo", actorId: player.id, cardId: a.cardId, count: 2 },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -447,6 +532,7 @@ function reassignWild(
   assertActorsTurn(s, a.playerId);
   assertHasDrawn(s);
 
+  const before = snapshotCompletions(s);
   const player = currentPlayer(s);
   const card = cardById(a.cardId);
   if (card.kind !== "wild2" && card.kind !== "wild10") {
@@ -479,8 +565,15 @@ function reassignWild(
   s.log.push({
     at: s.currentTurn,
     message: `${player.name} moved a wild from ${a.fromColor} to ${a.toColor}.`,
+    event: {
+      kind: "reassignWild",
+      actorId: player.id,
+      cardId: a.cardId,
+      color: a.toColor,
+    },
   });
 
+  emitCompletionDeltas(s, before);
   checkWin(s);
 }
 
@@ -506,7 +599,16 @@ function playSlyDeal(
     actionCardId: a.cardId,
     defenders: [target.id],
   });
-  s.log.push({ at: s.currentTurn, message: `${source.name} plays Sly Deal on ${target.name}.` });
+  s.log.push({
+    at: s.currentTurn,
+    message: `${source.name} plays Sly Deal on ${target.name}.`,
+    event: {
+      kind: "slyDeal",
+      actorId: source.id,
+      targetId: target.id,
+      cardId: a.cardId,
+    },
+  });
   // Note: card consumes 1 play. Plays decrement when JSN window resolves.
 }
 
@@ -543,7 +645,16 @@ function playForcedDeal(
     actionCardId: a.cardId,
     defenders: [target.id],
   });
-  s.log.push({ at: s.currentTurn, message: `${source.name} plays Forced Deal on ${target.name}.` });
+  s.log.push({
+    at: s.currentTurn,
+    message: `${source.name} plays Forced Deal on ${target.name}.`,
+    event: {
+      kind: "forcedDeal",
+      actorId: source.id,
+      targetId: target.id,
+      cardId: a.cardId,
+    },
+  });
 }
 
 function playDealBreaker(
@@ -577,6 +688,13 @@ function playDealBreaker(
   s.log.push({
     at: s.currentTurn,
     message: `${source.name} plays Deal Breaker on ${target.name}'s ${a.targetColor}.`,
+    event: {
+      kind: "dealBreaker",
+      actorId: source.id,
+      targetId: target.id,
+      cardId: a.cardId,
+      color: a.targetColor,
+    },
   });
 }
 
@@ -597,6 +715,13 @@ function playDebtCollector(
   s.log.push({
     at: s.currentTurn,
     message: `${source.name} plays Debt Collector on ${target.name} ($${DEBT_COLLECTOR_AMOUNT}M).`,
+    event: {
+      kind: "debtCollector",
+      actorId: source.id,
+      targetId: target.id,
+      cardId: a.cardId,
+      amount: DEBT_COLLECTOR_AMOUNT,
+    },
   });
 }
 
@@ -617,6 +742,13 @@ function playBirthday(
   s.log.push({
     at: s.currentTurn,
     message: `${source.name} plays It's My Birthday — every opponent owes $${BIRTHDAY_AMOUNT}M.`,
+    event: {
+      kind: "birthday",
+      actorId: source.id,
+      targetIds: opponents,
+      cardId: a.cardId,
+      amount: BIRTHDAY_AMOUNT,
+    },
   });
 }
 
@@ -694,6 +826,15 @@ function playRent(
       `${source.name} plays Rent on ${a.color}` +
       (multiplier > 1 ? ` (×${multiplier})` : "") +
       ` — owes $${baseRent * multiplier}M per target.`,
+    event: {
+      kind: "rent",
+      actorId: source.id,
+      targetIds,
+      cardId: a.cardId,
+      color: a.color,
+      amount: baseRent * multiplier,
+      multiplier,
+    },
   });
 }
 
@@ -728,7 +869,16 @@ function respondJsn(
     s.discardPile.push(a.cardId);
     w.jsnStack.push(a.playerId);
     w.responderIsActor = !w.responderIsActor;
-    s.log.push({ at: s.currentTurn, message: `${player.name} plays Just Say No.` });
+    s.log.push({
+      at: s.currentTurn,
+      message: `${player.name} plays Just Say No.`,
+      event: {
+        kind: "justSayNo",
+        actorId: player.id,
+        targetId: w.declaration.sourceId,
+        cardId: a.cardId,
+      },
+    });
     return; // window stays open; the other side decides next
   }
 
@@ -748,6 +898,11 @@ function respondJsn(
     s.log.push({
       at: s.currentTurn,
       message: `Action against ${playerById(s, defenderId).name} canceled.`,
+      event: {
+        kind: "jsnCanceled",
+        actorId: declaration.sourceId,
+        targetId: defenderId,
+      },
     });
   }
 
@@ -819,6 +974,7 @@ function pay(
     s.log.push({
       at: s.currentTurn,
       message: `${payer.name} has nothing — debt forgiven.`,
+      event: { kind: "debtForgiven", actorId: payer.id, targetId: payee.id },
     });
     advancePaymentQueue(s, p);
     return;
@@ -837,14 +993,25 @@ function pay(
   }
 
   // Transfer the cards. Properties retain their identity.
+  const before = snapshotCompletions(s);
   for (const cid of a.cardIds) {
     transferOneCard(s, payer, payee, cid);
   }
+  const paidAmount = Math.min(offered, p.amountOwed);
   s.log.push({
     at: s.currentTurn,
-    message: `${payer.name} paid ${payee.name} $${Math.min(offered, p.amountOwed)}M+ (${a.cardIds.length} cards).`,
+    message: `${payer.name} paid ${payee.name} $${paidAmount}M+ (${a.cardIds.length} cards).`,
+    event: {
+      kind: "pay",
+      actorId: payer.id,
+      targetId: payee.id,
+      cardIds: [...a.cardIds],
+      amount: paidAmount,
+      count: a.cardIds.length,
+    },
   });
 
+  emitCompletionDeltas(s, before);
   advancePaymentQueue(s, p);
   checkWin(s);
 }
@@ -889,8 +1056,19 @@ function applySingleEffect(
     case "slyDeal": {
       const t = findCardInProperties(defender, declaration.targetCardId);
       if (t.groupIdx === -1) return; // already moved? skip silently
+      const before = snapshotCompletions(s);
       transferPropertyCard(s, defender, source, declaration.targetCardId);
-      s.log.push({ at: s.currentTurn, message: `${source.name} stole a property from ${defender.name}.` });
+      s.log.push({
+        at: s.currentTurn,
+        message: `${source.name} stole a property from ${defender.name}.`,
+        event: {
+          kind: "slyDeal",
+          actorId: source.id,
+          targetId: defender.id,
+          cardId: declaration.targetCardId,
+        },
+      });
+      emitCompletionDeltas(s, before);
       return;
     }
     case "forcedDeal": {
@@ -902,11 +1080,18 @@ function applySingleEffect(
       const tookFromColor = defender.propertySets[fromTheirs.groupIdx]!.color;
       const gaveLabel = describeCardForLog(declaration.sourceCardId, gaveFromColor);
       const tookLabel = describeCardForLog(declaration.targetCardId, tookFromColor);
+      const before = snapshotCompletions(s);
       transferPropertyCard(s, source, defender, declaration.sourceCardId);
       transferPropertyCard(s, defender, source, declaration.targetCardId);
       s.log.push({
         at: s.currentTurn,
         message: `${source.name} gave ${gaveLabel} and took ${tookLabel} from ${defender.name}.`,
+        event: {
+          kind: "forcedDeal",
+          actorId: source.id,
+          targetId: defender.id,
+          cardIds: [declaration.sourceCardId, declaration.targetCardId],
+        },
         swap: {
           sourceId: source.id,
           targetId: defender.id,
@@ -916,6 +1101,7 @@ function applySingleEffect(
           tookFromColor,
         },
       });
+      emitCompletionDeltas(s, before);
       return;
     }
     case "dealBreaker": {
@@ -923,6 +1109,7 @@ function applySingleEffect(
       const groupIdx = declaration.targetGroupIdx;
       const group = defender.propertySets[groupIdx];
       if (!group) return;
+      const before = snapshotCompletions(s);
       // Place a fresh group on source's side preserving house/hotel.
       const newGroup: PropertySet = {
         color: group.color,
@@ -930,12 +1117,21 @@ function applySingleEffect(
         hasHouse: group.hasHouse,
         hasHotel: group.hasHotel,
       };
+      const stolenCardIds = [...group.cardIds];
       source.propertySets.push(newGroup);
       defender.propertySets.splice(groupIdx, 1);
       s.log.push({
         at: s.currentTurn,
         message: `${source.name} stole ${defender.name}'s ${group.color} set.`,
+        event: {
+          kind: "dealBreaker",
+          actorId: source.id,
+          targetId: defender.id,
+          color: group.color,
+          cardIds: stolenCardIds,
+        },
       });
+      emitCompletionDeltas(s, before);
       return;
     }
     case "debtCollector": {
@@ -1126,7 +1322,11 @@ function advanceTurn(s: GameState): void {
   s.playsRemaining = PLAYS_PER_TURN;
   s.hasDrawnThisTurn = false;
   const next = currentPlayer(s);
-  s.log.push({ at: s.currentTurn, message: `${next.name}'s turn.` });
+  s.log.push({
+    at: s.currentTurn,
+    message: `${next.name}'s turn.`,
+    event: { kind: "turnStart", actorId: next.id },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1260,7 +1460,11 @@ function drawCardsInto(s: GameState, player: Player, count: number): void {
       s.drawPile = items;
       s.discardPile = [];
       s.rngState = nextSeed;
-      s.log.push({ at: s.currentTurn, message: `Reshuffled discard into draw pile.` });
+      s.log.push({
+        at: s.currentTurn,
+        message: `Reshuffled discard into draw pile.`,
+        event: { kind: "reshuffle" },
+      });
     }
     const cid = s.drawPile.shift();
     if (!cid) return;
@@ -1283,6 +1487,11 @@ function checkWin(s: GameState): void {
       s.log.push({
         at: s.currentTurn,
         message: `${player.name} wins with ${completedColors.size} complete sets!`,
+        event: {
+          kind: "win",
+          actorId: player.id,
+          count: completedColors.size,
+        },
       });
       return;
     }
@@ -1314,7 +1523,16 @@ function detachHouseHotelIfBroken(
       player.bank.push(hotel);
       inPlay.add(hotel);
       group.hasHotel = false;
-      s.log.push({ at: s.currentTurn, message: `Hotel detached → bank.` });
+      s.log.push({
+        at: s.currentTurn,
+        message: `Hotel detached → bank.`,
+        event: {
+          kind: "hotelDetached",
+          actorId: player.id,
+          color: group.color,
+          cardId: hotel,
+        },
+      });
     }
   }
   if (group.hasHouse) {
@@ -1322,7 +1540,16 @@ function detachHouseHotelIfBroken(
     if (house) {
       player.bank.push(house);
       group.hasHouse = false;
-      s.log.push({ at: s.currentTurn, message: `House detached → bank.` });
+      s.log.push({
+        at: s.currentTurn,
+        message: `House detached → bank.`,
+        event: {
+          kind: "houseDetached",
+          actorId: player.id,
+          color: group.color,
+          cardId: house,
+        },
+      });
     }
   }
 

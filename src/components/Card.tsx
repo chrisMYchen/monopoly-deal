@@ -137,7 +137,7 @@ export function Card({
           data-card-id={cardId}
           data-card-kind={card.kind}
           className={className}
-          transition={{ type: "spring", stiffness: 380, damping: 32 }}
+          transition={{ type: "spring", stiffness: 460, damping: 28, mass: 0.7 }}
         >
           {renderCard(card, size)}
         </motion.button>

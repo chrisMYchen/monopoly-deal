@@ -739,3 +739,246 @@ describe("rentFor / isComplete", () => {
     expect(isComplete(getPlayer(s, "p1").propertySets[0]!)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Structured log events (animation cues)
+// ---------------------------------------------------------------------------
+
+describe("log events: setComplete / setBroken", () => {
+  it("emits setComplete when a property play completes a set", () => {
+    let s = newGame(2);
+    const browns = allCardsOfKind((c) => c.kind === "property" && c.set === "brown");
+    s = injectHand(s, "p1", [browns[0]!, browns[1]!]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    // First brown: incomplete → no setComplete event yet.
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: browns[0]!,
+      assignedColor: "brown",
+    });
+    expect(s.log.find((e) => e.event?.kind === "setComplete")).toBeUndefined();
+    // Second brown: completes the 2-card set → emits setComplete.
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: browns[1]!,
+      assignedColor: "brown",
+    });
+    const completeEvents = s.log.filter((e) => e.event?.kind === "setComplete");
+    expect(completeEvents.length).toBe(1);
+    expect(completeEvents[0]!.event).toMatchObject({
+      kind: "setComplete",
+      actorId: "p1",
+      color: "brown",
+    });
+  });
+
+  it("emits setComplete when a wild reassignment completes a new set", () => {
+    let s = newGame(2);
+    // Inject 2 browns + a brown/lightBlue wild2. Play all into brown (overcompletes
+    // brown — 3 cards in a 2-card set, which is allowed). Then reassign the wild
+    // to lightBlue. Brown should setBroken, but no setComplete fires for lightBlue
+    // (1 card alone isn't enough). Then add 2 more lightBlues to verify completion.
+    const browns = allCardsOfKind((c) => c.kind === "property" && c.set === "brown");
+    const wildBL = findCard(
+      (c) =>
+        c.kind === "wild2" &&
+        ((c.sets[0] === "lightBlue" && c.sets[1] === "brown") ||
+          (c.sets[0] === "brown" && c.sets[1] === "lightBlue")),
+    );
+    s = injectHand(s, "p1", [browns[0]!, browns[1]!, wildBL]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: browns[0]!,
+      assignedColor: "brown",
+    });
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: browns[1]!,
+      assignedColor: "brown",
+    });
+    // Brown is now complete (2/2). Adding a wild as brown overcompletes it (3/2).
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: wildBL,
+      assignedColor: "brown",
+    });
+    const beforeReassign = s.log.length;
+    // Reassign wild away. Brown drops back to 2/2 — still complete, so no setBroken.
+    s = applyAction(s, {
+      type: "REASSIGN_WILD",
+      playerId: "p1",
+      cardId: wildBL,
+      fromColor: "brown",
+      toColor: "lightBlue",
+    });
+    const newEvents = s.log.slice(beforeReassign).map((e) => e.event?.kind);
+    expect(newEvents).not.toContain("setBroken");
+    expect(newEvents).not.toContain("setComplete");
+  });
+
+  it("emits setBroken when wild reassignment drops a complete set below threshold", () => {
+    // Build a complete brown set as 1 solid + 1 wild2 (2/2). Then reassign the
+    // wild away → brown drops to 1/2 → setBroken fires.
+    let s = newGame(2, 9);
+    const brown0 = findCard((c) => c.kind === "property" && c.set === "brown");
+    const wildBL = findCard(
+      (c) =>
+        c.kind === "wild2" &&
+        ((c.sets[0] === "lightBlue" && c.sets[1] === "brown") ||
+          (c.sets[0] === "brown" && c.sets[1] === "lightBlue")),
+    );
+    s = injectHand(s, "p1", [brown0, wildBL]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: brown0,
+      assignedColor: "brown",
+    });
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: wildBL,
+      assignedColor: "brown",
+    });
+    // Brown is complete (2/2). Reassign wild → brown 1/2.
+    expect(
+      s.log.find((e) => e.event?.kind === "setComplete" && e.event.color === "brown"),
+    ).toBeDefined();
+    s = applyAction(s, {
+      type: "REASSIGN_WILD",
+      playerId: "p1",
+      cardId: wildBL,
+      fromColor: "brown",
+      toColor: "lightBlue",
+    });
+    const broken = s.log.filter((e) => e.event?.kind === "setBroken");
+    expect(broken.length).toBe(1);
+    expect(broken[0]!.event).toMatchObject({
+      kind: "setBroken",
+      actorId: "p1",
+      color: "brown",
+    });
+  });
+
+  it("emits setBroken on the victim and setComplete on the thief when Deal Breaker steals", () => {
+    let s = newGame(2, 11);
+    const browns = allCardsOfKind((c) => c.kind === "property" && c.set === "brown");
+    const dealBreaker = findCard((c) => c.kind === "action" && c.action === "dealBreaker");
+    // p1 completes a brown set.
+    s = injectHand(s, "p1", [browns[0]!, browns[1]!]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: browns[0]!,
+      assignedColor: "brown",
+    });
+    s = applyAction(s, {
+      type: "PLAY_PROPERTY",
+      playerId: "p1",
+      cardId: browns[1]!,
+      assignedColor: "brown",
+    });
+    s = injectHand(s, "p1", []);
+    s = applyAction(s, { type: "END_TURN", playerId: "p1" });
+
+    // p2 plays Deal Breaker on p1's brown set.
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p2" });
+    s = injectHand(s, "p2", [dealBreaker]);
+    const p1Group = getPlayer(s, "p1").propertySets.findIndex((g) => g.color === "brown");
+    s = applyAction(s, {
+      type: "PLAY_DEAL_BREAKER",
+      playerId: "p2",
+      cardId: dealBreaker,
+      targetPlayerId: "p1",
+      targetColor: "brown",
+      targetGroupIdx: p1Group,
+    });
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p1", play: false });
+    // p1 loses brown completion, p2 gains it.
+    const broken = s.log.filter((e) => e.event?.kind === "setBroken");
+    const complete = s.log.filter(
+      (e) => e.event?.kind === "setComplete" && e.event.actorId === "p2",
+    );
+    expect(broken.some((e) => e.event!.actorId === "p1" && e.event!.color === "brown")).toBe(true);
+    expect(complete.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("log events: structured payloads", () => {
+  it("attaches event.kind=draw with count on initial draw", () => {
+    const s = newGame(2);
+    const drawTurnStart = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    const drawEvents = drawTurnStart.log.filter((e) => e.event?.kind === "draw");
+    expect(drawEvents.length).toBe(1);
+    expect(drawEvents[0]!.event).toMatchObject({
+      kind: "draw",
+      actorId: "p1",
+      count: 2,
+    });
+  });
+
+  it("attaches event.kind=turnStart on advanceTurn", () => {
+    let s = newGame(2);
+    s = injectHand(s, "p1", []);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = injectHand(s, "p1", []);
+    s = applyAction(s, { type: "END_TURN", playerId: "p1" });
+    const turnStarts = s.log.filter((e) => e.event?.kind === "turnStart");
+    expect(turnStarts.length).toBeGreaterThanOrEqual(1);
+    expect(turnStarts[turnStarts.length - 1]!.event!.actorId).toBe("p2");
+  });
+
+  it("attaches event.kind=playMoney with amount on bank", () => {
+    let s = newGame(2);
+    const m5 = findCard((c) => c.kind === "money" && c.value === 5);
+    s = injectHand(s, "p1", [m5]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_AS_MONEY", playerId: "p1", cardId: m5 });
+    const ev = s.log.find((e) => e.event?.kind === "playMoney");
+    expect(ev?.event).toMatchObject({ kind: "playMoney", actorId: "p1", cardId: m5, amount: 5 });
+  });
+
+  it("attaches event.kind=win with set count on winning move", () => {
+    let s = newGame(2, 13);
+    const browns = allCardsOfKind((c) => c.kind === "property" && c.set === "brown");
+    const lights = allCardsOfKind((c) => c.kind === "property" && c.set === "lightBlue");
+    const reds = allCardsOfKind((c) => c.kind === "property" && c.set === "red");
+    // Pre-stack p1 with all 3 sets-worth of cards across turns.
+    s = injectHand(s, "p1", [browns[0]!, browns[1]!, lights[0]!]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: browns[0]!, assignedColor: "brown" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: browns[1]!, assignedColor: "brown" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: lights[0]!, assignedColor: "lightBlue" });
+    s = injectHand(s, "p1", []);
+    s = applyAction(s, { type: "END_TURN", playerId: "p1" });
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p2" });
+    s = injectHand(s, "p2", []);
+    s = applyAction(s, { type: "END_TURN", playerId: "p2" });
+    s = injectHand(s, "p1", [lights[1]!, lights[2]!, reds[0]!]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: lights[1]!, assignedColor: "lightBlue" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: lights[2]!, assignedColor: "lightBlue" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: reds[0]!, assignedColor: "red" });
+    s = injectHand(s, "p1", []);
+    s = applyAction(s, { type: "END_TURN", playerId: "p1" });
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p2" });
+    s = injectHand(s, "p2", []);
+    s = applyAction(s, { type: "END_TURN", playerId: "p2" });
+    s = injectHand(s, "p1", [reds[1]!, reds[2]!]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: reds[1]!, assignedColor: "red" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: reds[2]!, assignedColor: "red" });
+    expect(s.phase).toBe("ended");
+    const winEvent = s.log.find((e) => e.event?.kind === "win");
+    expect(winEvent?.event).toMatchObject({ kind: "win", actorId: "p1" });
+    expect(winEvent?.event?.count).toBeGreaterThanOrEqual(3);
+  });
+});

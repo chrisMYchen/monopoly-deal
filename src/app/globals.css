@@ -96,9 +96,105 @@ body {
   animation: rr-edge-pulse-glow 0.8s ease-in-out infinite;
 }
 
+/* Set-complete flash: brief white-to-color shimmer + ring expansion on the
+ * just-completed property group. Decorative — no layout side effects. */
+@keyframes rr-set-complete-glow {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(253, 224, 71, 0),
+      0 0 0 0 rgba(255, 255, 255, 0);
+    transform: scale(1);
+  }
+  20% {
+    box-shadow:
+      0 0 0 6px rgba(253, 224, 71, 0.55),
+      0 0 24px 4px rgba(255, 255, 255, 0.55);
+    transform: scale(1.04);
+  }
+  100% {
+    box-shadow:
+      0 0 0 14px rgba(253, 224, 71, 0),
+      0 0 36px 8px rgba(253, 224, 71, 0);
+    transform: scale(1);
+  }
+}
+
+.rr-set-complete-flash {
+  animation: rr-set-complete-glow 0.9s ease-out 1;
+}
+
+/* Subtle table shake for high-impact plays (Deal Breaker, win). Tiny
+ * amplitude — the table bounces ~3px, no nausea. */
+@keyframes rr-shake-keys {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-2px, 1px); }
+  25% { transform: translate(3px, -1px); }
+  40% { transform: translate(-3px, -1px); }
+  55% { transform: translate(2px, 1px); }
+  70% { transform: translate(-1px, 0); }
+  85% { transform: translate(1px, 0); }
+}
+
+.rr-shake {
+  animation: rr-shake-keys 0.32s ease-in-out 1;
+}
+
+/* Quick scale pulse used by hand-count + deck-count badges when they tick. */
+@keyframes rr-count-pulse-keys {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+.rr-count-pulse {
+  display: inline-block;
+  animation: rr-count-pulse-keys 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+  transform-origin: center;
+}
+
+/* Rotating gold glow that flares once on the player whose turn just started.
+ * Single cycle so it doesn't compete with the persistent rr-pulse on self. */
+@keyframes rr-turn-glow-keys {
+  0% {
+    box-shadow: 0 0 0 0 rgba(253, 224, 71, 0);
+  }
+  35% {
+    box-shadow: 0 0 22px 6px rgba(253, 224, 71, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(253, 224, 71, 0);
+  }
+}
+
+.rr-turn-glow {
+  animation: rr-turn-glow-keys 0.95s ease-out 1;
+}
+
+/* Cool sweep on the previous player's chip when their turn ends. */
+@keyframes rr-turn-end-sweep-keys {
+  0% {
+    box-shadow: 0 0 0 0 rgba(148, 163, 184, 0);
+  }
+  40% {
+    box-shadow: 0 0 16px 4px rgba(148, 163, 184, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(148, 163, 184, 0);
+  }
+}
+
+.rr-turn-end-sweep {
+  animation: rr-turn-end-sweep-keys 0.65s ease-out 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rr-pulse,
-  .rr-edge-pulse {
+  .rr-edge-pulse,
+  .rr-set-complete-flash,
+  .rr-shake,
+  .rr-count-pulse,
+  .rr-turn-glow,
+  .rr-turn-end-sweep {
     animation: none;
   }
 }

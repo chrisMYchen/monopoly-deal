@@ -15,6 +15,10 @@ export function PropertySetsView({
   // used by Forced Deal so both swapped properties stand out in their new
   // owner's play area until the player has visually registered what happened.
   flashingCardIds,
+  // Owner of these sets — used as an animation anchor (data-player-id +
+  // data-set-color let the AnimationLayer locate this group's bounding box
+  // for confetti, glow, and big-number floats).
+  playerId,
 }: {
   propertySets: PropertySet[];
   compact?: boolean;
@@ -22,6 +26,7 @@ export function PropertySetsView({
   selectableCardIds?: Set<string>;
   selectedCardId?: string;
   flashingCardIds?: Set<string>;
+  playerId?: string;
 }) {
   if (propertySets.length === 0) {
     return <div className="text-xs opacity-50">no properties</div>;
@@ -36,11 +41,13 @@ export function PropertySetsView({
           <div
             key={`${group.color}-${gi}`}
             className={[
-              "flex flex-col gap-1 rounded-md border p-1",
+              "flex flex-col gap-1 rounded-md border p-1 transition-all",
               complete ? "border-yellow-400/70 bg-yellow-400/10" : "border-white/15 bg-white/5",
             ].join(" ")}
             data-testid={`property-set-${group.color}-${gi}`}
             data-complete={complete}
+            data-player-id={playerId}
+            data-set-color={group.color}
           >
             <div className="flex items-center justify-between gap-2 px-1 text-[10px] uppercase tracking-widest opacity-70">
               <span className="capitalize">
