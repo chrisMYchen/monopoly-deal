@@ -301,16 +301,30 @@ function assertRainbowAttachable(player: Player, color: SetColor): void {
 
 function placeIntoTableau(player: Player, cardId: CardId, color: SetColor): void {
   const def = SET_DEFS[color];
-  let group = findGroup(player, color);
-  if (!group) {
-    group = { color, cardIds: [], hasHouse: false, hasHotel: false };
-    player.tableau.push(group);
+  // One set per color. New cards always extend the existing same-color group;
+  // a complete set growing past `def.complete` (overcomplete: 4/3, 5/3, etc.)
+  // is intentional — wildcards in the set may leave later via REASSIGN_WILD,
+  // and Deal Breaker / rent treat the whole group as one set. If multiple
+  // same-color groups already exist (e.g., from a Deal Breaker steal stacked
+  // on top of an existing set), prefer attaching to a partial group so plays
+  // progress toward completion instead of bloating a complete one.
+  const sameColor = player.tableau.filter((g) => g.color === color);
+  let target: TableauGroup | undefined;
+  if (sameColor.length > 0) {
+    const partials = sameColor.filter((g) => g.cardIds.length < def.complete);
+    if (partials.length > 0) {
+      target = partials.reduce((best, g) =>
+        g.cardIds.length > best.cardIds.length ? g : best,
+      );
+    } else {
+      target = sameColor[0]!;
+    }
   }
-  if (group.cardIds.length >= def.complete) {
-    group = { color, cardIds: [], hasHouse: false, hasHotel: false };
-    player.tableau.push(group);
+  if (!target) {
+    target = { color, cardIds: [], hasHouse: false, hasHotel: false };
+    player.tableau.push(target);
   }
-  group.cardIds.push(cardId);
+  target.cardIds.push(cardId);
 }
 
 // ---------------------------------------------------------------------------

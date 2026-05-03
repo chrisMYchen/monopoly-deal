@@ -255,6 +255,36 @@ describe("PLAY_DEAL_BREAKER", () => {
       }),
     ).toThrow();
   });
+
+  it("steals an overcomplete set as one unit (every extra card moves with it)", () => {
+    // Mirrors the user-confirmed semantics: a set with wildcards-plus-extras
+    // (4/3, 5/3) is one set. Deal Breaker must take the whole pile.
+    let s = newGame();
+    const dbCard = findCard((c) => c.kind === "action" && c.action === "dealBreaker");
+    const oranges = allOf((c) => c.kind === "property" && c.set === "orange");
+    const orangeWilds = allOf(
+      (c) => c.kind === "wild2" && c.sets.includes("orange") && c.sets.includes("pink"),
+    );
+    const overcomplete = [...oranges, ...orangeWilds]; // 5 cards, complete=3
+    s = injectHand(s, "p1", [dbCard]);
+    s = injectTableau(s, "p2", [{ color: "orange", cardIds: overcomplete }]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, {
+      type: "PLAY_DEAL_BREAKER",
+      playerId: "p1",
+      cardId: dbCard,
+      targetPlayerId: "p2",
+      targetColor: "orange",
+      targetGroupIdx: 0,
+    });
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
+    expect(getPlayer(s, "p2").tableau).toEqual([]);
+    const stolen = getPlayer(s, "p1").tableau;
+    expect(stolen.length).toBe(1);
+    expect(stolen[0]!.color).toBe("orange");
+    expect(stolen[0]!.cardIds.length).toBe(5);
+    for (const cid of overcomplete) expect(stolen[0]!.cardIds).toContain(cid);
+  });
 });
 
 // ---------------------------------------------------------------------------

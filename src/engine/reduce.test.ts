@@ -246,12 +246,13 @@ describe("PLAY_PROPERTY", () => {
     expect(getPlayer(s, "p1").tableau[0]!.cardIds.length).toBe(2);
   });
 
-  it("starts a second group of the same color when first is full", () => {
-    // Brown completes at 2; play a third brown -> new group.
+  it("extends an already-complete same-color group instead of spawning a new one (overcomplete is one set)", () => {
+    // Brown completes at 2. Playing a third brown must keep one brown group
+    // (3 cards = overcomplete) — wildcards in a complete set may leave later
+    // via REASSIGN_WILD, and Deal Breaker treats the whole group as one set.
     let s = newGame();
     const browns = allCardsOfKind((c) => c.kind === "property" && c.set === "brown");
     expect(browns.length).toBe(2);
-    // Inject a wild2 that includes brown so we can land 3 brown-colored cards.
     const brownWild = findCard(
       (c) =>
         c.kind === "wild2" &&
@@ -262,11 +263,104 @@ describe("PLAY_PROPERTY", () => {
     s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: browns[0]!, assignedColor: "brown" });
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: browns[1]!, assignedColor: "brown" });
-    // 3 plays max; the third should land. After completion, a third placed -> new group.
     s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: brownWild, assignedColor: "brown" });
     const p1 = getPlayer(s, "p1");
     const brownGroups = p1.tableau.filter((g) => g.color === "brown");
-    expect(brownGroups.length).toBe(2);
+    expect(brownGroups.length).toBe(1);
+    expect(brownGroups[0]!.cardIds.length).toBe(3);
+    expect(brownGroups[0]!.cardIds).toContain(brownWild);
+    expect(isComplete(brownGroups[0]!)).toBe(true);
+  });
+
+  it("keeps growing a complete set when wildcards already finished it (4/3, 5/3 still one orange set)", () => {
+    // User-reported scenario: 3/3 orange already complete (with a wildcard),
+    // then more orange cards must keep flowing into the same set — never
+    // spawning a stranded 1/3 partial group of the same color.
+    let s = newGame();
+    const oranges = allCardsOfKind((c) => c.kind === "property" && c.set === "orange");
+    const orangeWilds = allCardsOfKind(
+      (c) => c.kind === "wild2" && c.sets.includes("orange") && c.sets.includes("pink"),
+    );
+    expect(oranges.length).toBe(3);
+    expect(orangeWilds.length).toBe(2);
+
+    // Turn 1: complete orange with 2 solids + 1 wild2.
+    s = injectHand(s, "p1", [oranges[0]!, oranges[1]!, orangeWilds[0]!]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: oranges[0]!, assignedColor: "orange" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: oranges[1]!, assignedColor: "orange" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: orangeWilds[0]!, assignedColor: "orange" });
+
+    // Skip to p1's next turn.
+    s = applyAction(s, { type: "END_TURN", playerId: "p1" });
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p2" });
+    s = applyAction(s, { type: "END_TURN", playerId: "p2" });
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p3" });
+    s = applyAction(s, { type: "END_TURN", playerId: "p3" });
+
+    // Turn 2: pile two more oranges onto the already-complete group.
+    s = injectHand(s, "p1", [oranges[2]!, orangeWilds[1]!]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: oranges[2]!, assignedColor: "orange" });
+
+    let p1 = getPlayer(s, "p1");
+    let orangeGroups = p1.tableau.filter((g) => g.color === "orange");
+    expect(orangeGroups.length).toBe(1);
+    expect(orangeGroups[0]!.cardIds.length).toBe(4);
+
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: orangeWilds[1]!, assignedColor: "orange" });
+    p1 = getPlayer(s, "p1");
+    orangeGroups = p1.tableau.filter((g) => g.color === "orange");
+    expect(orangeGroups.length).toBe(1);
+    expect(orangeGroups[0]!.cardIds.length).toBe(5);
+    // All five orange-capable cards landed in the single set.
+    for (const cid of [...oranges, ...orangeWilds]) {
+      expect(orangeGroups[0]!.cardIds).toContain(cid);
+    }
+    // Set still complete; rent should still be the top of the orange ladder.
+    expect(isComplete(orangeGroups[0]!)).toBe(true);
+    expect(rentFor(p1, "orange")).toBe(SET_DEFS.orange.rentLadder.at(-1));
+  });
+
+  it("prefers an existing partial group over an existing complete group when both exist (defensive: stale state)", () => {
+    // If a player ever ends up with [3/3 complete, 1/3 partial] of the same
+    // color (e.g., from a Deal Breaker stacked on top of an existing partial
+    // set, or from older saved state), a fresh same-color play should land in
+    // the partial — extending it toward completion — not pile onto the
+    // already-complete group.
+    let s = newGame();
+    const oranges = allCardsOfKind((c) => c.kind === "property" && c.set === "orange");
+    const orangeWilds = allCardsOfKind(
+      (c) => c.kind === "wild2" && c.sets.includes("orange") && c.sets.includes("pink"),
+    );
+    s = injectHand(s, "p1", [orangeWilds[0]!]);
+    // Hand-roll the buggy two-orange-group state directly on p1's tableau,
+    // then verify the next placement collapses it correctly.
+    s = {
+      ...s,
+      players: s.players.map((p) =>
+        p.id === "p1"
+          ? {
+              ...p,
+              tableau: [
+                { color: "orange" as const, cardIds: [oranges[0]!, oranges[1]!, oranges[2]!], hasHouse: false, hasHotel: false },
+                { color: "orange" as const, cardIds: [orangeWilds[1]!], hasHouse: false, hasHotel: false },
+              ],
+            }
+          : p,
+      ),
+    };
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_PROPERTY", playerId: "p1", cardId: orangeWilds[0]!, assignedColor: "orange" });
+    const p1 = getPlayer(s, "p1");
+    const orangeGroups = p1.tableau.filter((g) => g.color === "orange");
+    expect(orangeGroups.length).toBe(2);
+    const complete = orangeGroups.find((g) => g.cardIds.length === 3)!;
+    const partial = orangeGroups.find((g) => g.cardIds.length !== 3)!;
+    expect(complete.cardIds.length).toBe(3);
+    expect(partial.cardIds.length).toBe(2);
+    expect(partial.cardIds).toContain(orangeWilds[0]!);
+    expect(partial.cardIds).toContain(orangeWilds[1]!);
   });
 });
 
