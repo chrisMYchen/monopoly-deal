@@ -50,6 +50,7 @@ import { PlayerAvatar } from "./PlayerAvatar";
 import { SetProgress } from "./SetProgress";
 import { TableauView } from "./TableauView";
 import { Toasts } from "./Toasts";
+import { PlaysPill } from "./PlaysPill";
 import { TurnTimerPill } from "./TurnTimerPill";
 import { colorForPlayerId } from "@/lib/playerColor";
 import { ACTION_DESCRIPTIONS, ACTION_LABELS } from "@/engine/cards";
@@ -696,24 +697,30 @@ function TopBanner({ state }: { state: ProjectedGameState }) {
   const onClockId = onClockPlayerIdFromProjected(state);
   return (
     <div
+      // Sticky so the timer + plays-remaining pills stay visible regardless of
+      // scroll. The translucent backdrop matches the bottom action bar so the
+      // two read as a paired "cockpit" anchoring the play surface.
       className={[
-        "rounded-md border bg-white/5 px-3 py-2 text-center text-sm transition-colors",
+        "sticky top-2 z-30 rounded-md border px-3 py-2 text-center text-sm transition-colors",
+        "bg-zinc-900/80 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/65",
         isMyTurn ? "rr-pulse" : "border-white/15",
       ].join(" ")}
       data-testid="turn-banner"
     >
-      <div className="flex items-center justify-center gap-2 font-semibold">
-        {isMyTurn ? "Your turn" : `${cur.name}'s turn`}
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-semibold">
+        <span>{isMyTurn ? "Your turn" : `${cur.name}'s turn`}</span>
         <TurnTimerPill
           deadlineMs={state.turnDeadlineMs}
           totalSeconds={state.settings?.turnTimerSeconds ?? null}
           selfOnClock={onClockId != null && onClockId === state.selfId}
         />
+        <PlaysPill
+          playsRemaining={state.playsRemaining}
+          hasDrawn={state.hasDrawnThisTurn}
+          dim={!isMyTurn}
+        />
       </div>
-      <div className="text-xs opacity-70">
-        {state.hasDrawnThisTurn ? `${state.playsRemaining} plays left` : "needs to draw"}
-        {pendingMsg && ` · ${pendingMsg}`}
-      </div>
+      {pendingMsg && <div className="text-xs opacity-70">{pendingMsg}</div>}
     </div>
   );
 }
@@ -872,6 +879,8 @@ function SelfArea({
       if (c.kind === "wild2" || c.kind === "wild10") wildIds.add(cid);
     }
   }
+  const [bankOpen, setBankOpen] = useState(false);
+  const bankTotal = self.bank.reduce((s, cid) => s + bankValue(cid), 0);
   return (
     <section
       className={[
@@ -886,11 +895,21 @@ function SelfArea({
           {isMyTurn && <span className="text-yellow-300">(your turn)</span>}
           <SetProgress count={completedSets} highlight />
         </h2>
-        <div className="text-xs opacity-70">
-          Bank ${self.bank.reduce((s, cid) => s + bankValue(cid), 0)}M ·{" "}
-          {state.hasDrawnThisTurn && isMyTurn ? `${state.playsRemaining} plays` : ""}
+        <div className="flex items-center gap-2 text-xs opacity-70">
+          <button
+            type="button"
+            onClick={() => setBankOpen(true)}
+            disabled={self.bank.length === 0}
+            className="rounded border border-emerald-300/30 bg-emerald-300/10 px-1.5 py-0.5 font-mono text-emerald-100/90 transition hover:bg-emerald-300/20 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-emerald-300/10"
+            title={self.bank.length === 0 ? "Bank is empty" : "Tap to view your bank"}
+            aria-label={`View bank — $${bankTotal}M, ${self.bank.length} card${self.bank.length === 1 ? "" : "s"}`}
+          >
+            <span aria-hidden>💰</span> ${bankTotal}M
+          </button>
+          {state.hasDrawnThisTurn && isMyTurn ? <span>{state.playsRemaining} plays</span> : null}
         </div>
       </div>
+      {bankOpen && <SelfBankSheet self={self} onClose={() => setBankOpen(false)} />}
       {isMyTurn && wildIds.size > 0 && (
         <p className="text-[11px] opacity-50" aria-live="polite">
           Tap a wild card in your tableau to reassign its color (free).
@@ -937,6 +956,46 @@ function bankValue(cid: CardId): number {
   const c = cardById(cid);
   if (c.kind === "money" || c.kind === "property" || c.kind === "action") return c.value;
   return 0;
+}
+
+function SelfBankSheet({ self, onClose }: { self: ProjectedPlayer; onClose: () => void }) {
+  const total = self.bank.reduce((s, cid) => s + bankValue(cid), 0);
+  return (
+    <div
+      className="fixed inset-0 z-40 flex flex-col justify-end bg-black/50 sm:items-center sm:justify-center sm:p-8"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Your bank"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[80vh] w-full overflow-y-auto rounded-t-xl border border-white/15 bg-zinc-900 p-4 shadow-2xl sm:max-w-2xl sm:rounded-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-semibold">
+            <span aria-hidden>💰</span> Your Bank
+            <span className="font-mono text-sm opacity-70">${total}M</span>
+          </h3>
+          <button
+            onClick={onClose}
+            className="rounded px-2 py-1 text-sm opacity-70 hover:bg-white/10 hover:opacity-100"
+          >
+            Close
+          </button>
+        </div>
+        {self.bank.length === 0 ? (
+          <div className="text-xs opacity-50">Bank is empty.</div>
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {self.bank.map((cid) => (
+              <Card key={cid} cardId={cid} size="sm" animated={false} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
