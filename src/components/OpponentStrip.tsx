@@ -83,7 +83,9 @@ export function OpponentStrip({
                 <div className="flex items-center gap-2 text-xs opacity-80">
                   <span className="flex items-center gap-1">
                     <span aria-hidden>🂠</span>
-                    <span className="font-mono">{p.handCount}</span>
+                    <span className="font-mono" data-hand-count={p.id}>
+                      {p.handCount}
+                    </span>
                   </span>
                   <span className="font-mono">${bankTotal}M</span>
                 </div>
@@ -115,6 +117,7 @@ export function OpponentStrip({
                     compact
                     onCardClick={undefined}
                     flashingCardIds={flashingCardIds}
+                    playerId={p.id}
                   />
                 </div>
               </div>
@@ -167,6 +170,8 @@ function OpponentChip({
       ref={setNodeRef}
       onClick={onClick}
       data-testid={`opponent-${playerId}`}
+      data-player-id={playerId}
+      data-player-chip={playerId}
       className={[
         "flex flex-col gap-2 rounded-md border p-2 text-left transition",
         "w-full sm:w-fit sm:min-w-[180px]",
@@ -268,7 +273,7 @@ function OpponentDetailSheet({
           {opponent.propertySets.length === 0 ? (
             <div className="text-xs opacity-50">no properties</div>
           ) : (
-            <PropertySetsView propertySets={opponent.propertySets} compact flashingCardIds={flashingCardIds} />
+            <PropertySetsView propertySets={opponent.propertySets} compact flashingCardIds={flashingCardIds} playerId={opponent.id} />
           )}
         </section>
         {opponent.bank.length > 0 && (

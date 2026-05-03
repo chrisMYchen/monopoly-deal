@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 
 import { Card } from "./Card";
@@ -30,14 +31,25 @@ function Modal({
   onCancel?: () => void;
   testId?: string;
 }) {
+  // Modal entry is intentionally fast (80ms) and never gates input — buttons
+  // inside accept clicks immediately on first frame. No exit animation either,
+  // because deferring close on cancel would feel laggy.
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.08, ease: "linear" }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       role="dialog"
       aria-modal="true"
       data-testid={testId}
     >
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/15 bg-zinc-900 p-4 shadow-2xl">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.14, ease: [0.18, 0.9, 0.3, 1.05] }}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/15 bg-zinc-900 p-4 shadow-2xl"
+      >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-lg font-semibold">{title}</h3>
           {onCancel && (
@@ -51,8 +63,8 @@ function Modal({
           )}
         </div>
         {children}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

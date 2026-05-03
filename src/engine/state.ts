@@ -25,13 +25,62 @@ export type Player = {
   connected: boolean;
 };
 
+// Discriminator for the structured `event` field on LogEntry. The client
+// dispatcher (AnimationLayer) routes each kind to the right visual/sfx/haptic.
+// Engine purity is preserved: these are pure data labels, no I/O.
+export type LogEventKind =
+  | "gameStart"
+  | "draw"
+  | "playProperty"
+  | "playMoney"
+  | "reassignWild"
+  | "house"
+  | "hotel"
+  | "passGo"
+  | "slyDeal"
+  | "forcedDeal"
+  | "dealBreaker"
+  | "debtCollector"
+  | "birthday"
+  | "rent"
+  | "justSayNo"
+  | "jsnCanceled"
+  | "pay"
+  | "debtForgiven"
+  | "discardToLimit"
+  | "reshuffle"
+  | "houseDetached"
+  | "hotelDetached"
+  | "setComplete"
+  | "setBroken"
+  | "turnStart"
+  | "win";
+
+export type LogEvent = {
+  kind: LogEventKind;
+  // Free-form payload — every UI-relevant event populates these as needed.
+  // The client reads only what it needs per `kind`.
+  actorId?: PlayerId;
+  targetId?: PlayerId;
+  targetIds?: PlayerId[];
+  cardId?: CardId;
+  cardIds?: CardId[];
+  color?: SetColor;
+  amount?: number;
+  count?: number;
+  multiplier?: number;
+};
+
 export type LogEntry = {
   at: number; // turn index for ordering
   message: string;
-  // Optional structured payload. Most entries are pure text; events that
-  // benefit from rich UI rendering (color chips, mini cards) and client-side
-  // animation cues attach a typed payload here. Today only Forced Deal uses
-  // it — the renderer falls back to `message` when absent.
+  // Optional structured event for animation dispatch + rich UI rendering.
+  // Falls back to `message` when absent. Engine handlers populate this at
+  // every push site so the client never has to regex the message text.
+  event?: LogEvent;
+  // Legacy structured payload for Forced Deal swap rendering. Kept distinct
+  // from `event` because GameLog already renders it specially. New code
+  // should prefer `event`.
   swap?: {
     sourceId: PlayerId;
     targetId: PlayerId;

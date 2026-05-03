@@ -127,12 +127,19 @@ export class Room {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    // Capture the room code from any path that carries it (`/r/CODE/...` or
+    // `/init?code=CODE`). The DO is keyed by `idFromName(code)`, so the code in
+    // the URL is authoritative for this instance — but the DO doesn't otherwise
+    // know its own name, so we have to lift it off an incoming request.
+    const codeFromPath = url.pathname.match(/^\/r\/([A-Z0-9]{4,8})(?:\/|$)/)?.[1];
+    const codeFromQuery = url.searchParams.get("code") ?? undefined;
+    const incomingCode = codeFromPath ?? codeFromQuery;
+    if (incomingCode && !this.roomCode) {
+      this.roomCode = incomingCode;
+      await this.state.storage.put(STORAGE_KEY_CODE, incomingCode);
+    }
+
     if (url.pathname === "/init") {
-      const code = url.searchParams.get("code");
-      if (code && !this.roomCode) {
-        this.roomCode = code;
-        await this.state.storage.put(STORAGE_KEY_CODE, code);
-      }
       return new Response("ok");
     }
 

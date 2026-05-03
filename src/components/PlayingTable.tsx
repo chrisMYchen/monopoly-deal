@@ -27,6 +27,7 @@ import { useGame } from "@/lib/gameStore";
 import type { WsClient } from "@/lib/wsClient";
 
 import { Card, CardBack } from "./Card";
+import { FxToggles } from "./FxToggles";
 import {
   CompleteSetPicker,
   DiscardToLimitDialog,
@@ -713,7 +714,10 @@ function Wrapper({ state, children }: { state: ProjectedGameState; children: Rea
   // both endpoints share the same `layoutId="card-<id>"`.
   return (
     <LayoutGroup>
-      <main className="flex min-h-dvh flex-col gap-2 p-2 pb-40 sm:p-4 sm:pb-40">
+      <main
+        data-table-root
+        className="flex min-h-dvh flex-col gap-2 p-2 pb-40 sm:p-4 sm:pb-40"
+      >
         <TopBanner state={state} />
         {children}
         <GameLog log={state.log} />
@@ -753,6 +757,7 @@ function TopBanner({ state }: { state: ProjectedGameState }) {
           hasDrawn={state.hasDrawnThisTurn}
           dim={!isMyTurn}
         />
+        <FxToggles />
       </div>
       {pendingMsg && <div className="text-xs opacity-70">{pendingMsg}</div>}
     </div>
@@ -873,7 +878,7 @@ function Center({ state }: { state: ProjectedGameState }) {
       data-testid="deck-discard"
       aria-label="Deck and discard pile"
     >
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center gap-1" data-rr-deck>
         <CardBack size="md" count={state.drawPileCount} />
         <div className="text-[10px] uppercase tracking-widest opacity-50">Deck</div>
         {/* Reshuffle warning when deck is almost empty — fair info for everyone. */}
@@ -926,8 +931,10 @@ function SelfArea({
   const bankTotal = self.bank.reduce((s, cid) => s + bankValue(cid), 0);
   return (
     <section
+      data-player-id={self.id}
+      data-player-chip={self.id}
       className={[
-        "mt-auto flex flex-col gap-2 rounded-md border p-2",
+        "mt-auto flex flex-col gap-2 rounded-md border p-2 transition",
         isMyTurn ? "border-yellow-300/50 bg-yellow-300/5" : `${colorForPlayerId(self.id).border} ${colorForPlayerId(self.id).bg}`,
       ].join(" ")}
     >
@@ -971,6 +978,7 @@ function SelfArea({
           onCardClick={onPropertyCardClick && isMyTurn ? onPropertyCardClick : undefined}
           selectableCardIds={wildIds}
           flashingCardIds={flashingCardIds}
+          playerId={self.id}
         />
         {self.propertySets.length === 0 && isMyTurn && (
           <div className="rounded border border-dashed border-white/20 p-3 text-center text-[11px] opacity-50">

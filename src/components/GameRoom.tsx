@@ -12,6 +12,7 @@ import {
 import { useGame } from "@/lib/gameStore";
 import { connectRoom, type WsClient } from "@/lib/wsClient";
 
+import { AnimationLayer } from "./AnimationLayer";
 import { Lobby } from "./Lobby";
 import { PlayingTable } from "./PlayingTable";
 import { ResultsScreen } from "./ResultsScreen";
@@ -159,6 +160,7 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
       )}
       {state.phase === "playing" && wsRef.current && <PlayingTable client={wsRef.current} />}
       {state.phase === "ended" && <ResultsScreen />}
+      {state.phase !== "lobby" && <AnimationLayer />}
     </>
   );
 }
