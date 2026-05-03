@@ -32,9 +32,13 @@ export function GameLog({ state }: { state: ProjectedGameState }) {
 
   return (
     <div
+      // Sits below the sticky cockpit (turn banner) on desktop so the two
+      // never overlap. The cockpit is `sticky top-2 z-30` and is roughly
+      // 50–60px tall; `top-20` (80px) clears it including the optional
+      // pending-state second line. Mobile uses RecentsRibbon + PlayLogSheet.
       className={[
         "surface-paper fixed z-20 hidden flex-col overflow-hidden rounded-2xl text-xs sm:flex",
-        "right-2 top-2 max-h-[60vh] w-72",
+        "right-2 top-20 max-h-[60vh] w-72",
       ].join(" ")}
       data-testid="game-log"
     >
