@@ -206,6 +206,7 @@ function renderCard(card: CardData, size: CardSize) {
     case "wild10":
       return <Wild10Face />;
     case "action":
+      if (card.action === "rent") return <RentFace card={card} />;
       return <ActionFace card={card} />;
   }
 }
@@ -377,11 +378,61 @@ function ActionFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
         <div className="font-display text-[1.1em] uppercase leading-[1.05] tracking-[0.02em] text-zinc-900">
           {label}
         </div>
-        {card.action === "rent" && card.rentSets && (
-          <div className="mt-0.5 text-[0.55em] font-medium uppercase tracking-[0.15em] text-zinc-500">
-            {card.rentSingleTarget ? "★ Any color" : card.rentSets.map((c) => SET_LABEL[c]).join(" / ")}
-          </div>
-        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Rent face — color bands at the top show which property colors this rent
+// targets. Two stripes for 2-color rents; full 10-color grid for the wild ★.
+// Mirrors the look of real Monopoly Deal rent cards (which are dominated by
+// the color identification, not a single themed background).
+// ---------------------------------------------------------------------------
+
+function RentFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
+  const Art = ACTION_ART.rent;
+  const sets = card.rentSets ?? [];
+  const isWild = card.rentSingleTarget === true;
+
+  return (
+    <div className="flex h-full w-full flex-col bg-white text-zinc-900">
+      {/* color bands — two horizontal stripes for 2-color rent, 5x2 grid for wild ★ */}
+      {isWild ? (
+        <div className="grid h-[34%] w-full grid-cols-5 grid-rows-2">
+          <div className="bg-[var(--color-set-brown)]" />
+          <div className="bg-[var(--color-set-light-blue)]" />
+          <div className="bg-[var(--color-set-pink)]" />
+          <div className="bg-[var(--color-set-orange)]" />
+          <div className="bg-[var(--color-set-red)]" />
+          <div className="bg-[var(--color-set-yellow)]" />
+          <div className="bg-[var(--color-set-green)]" />
+          <div className="bg-[var(--color-set-dark-blue)]" />
+          <div className="bg-[var(--color-set-railroad)]" />
+          <div className="bg-[var(--color-set-utility)]" />
+        </div>
+      ) : (
+        <div className="flex h-[34%] w-full flex-col">
+          {sets.map((c, i) => (
+            <div key={i} className={`${SET_BG[c]} flex-1`} />
+          ))}
+        </div>
+      )}
+
+      {/* top tag row — "ACTION" + bank chip, sitting on white */}
+      <div className="flex items-center justify-between px-1.5 pt-1 text-[0.55em] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+        <span>Action</span>
+        <span className="rounded-sm bg-zinc-100 px-1 py-[1px] font-mono text-zinc-900">
+          ${card.value}M
+        </span>
+      </div>
+
+      {/* illustration + title — fills the middle band */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-1 px-2 py-1">
+        <Art className="h-full w-full max-h-[58%] text-[var(--color-action-rent)]" />
+        <div className="font-display text-[1.1em] uppercase leading-[1.05] tracking-[0.02em] text-zinc-900">
+          {isWild ? "★ Rent" : "Rent"}
+        </div>
       </div>
     </div>
   );
