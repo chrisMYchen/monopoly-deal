@@ -86,23 +86,21 @@ export function RecentsRibbon({
       aria-label="Open play log"
       data-testid="recents-ribbon"
       className={[
-        "sm:hidden w-full overflow-hidden rounded-xl border px-3 py-1.5 text-left transition-colors",
-        targeted
-          ? "border-cyan-300/60 bg-cyan-500/15"
-          : "border-white/10 bg-white/5",
+        "surface-inked-soft sm:hidden w-full overflow-hidden rounded-xl px-3 py-1.5 text-left transition-colors",
+        targeted ? "ring-2 ring-cyan-300/70" : "",
       ].join(" ")}
     >
       <div className="flex items-center gap-1.5">
         <span
           aria-hidden
-          className="text-[9px] font-semibold uppercase tracking-widest opacity-50"
+          className="text-[9px] font-semibold uppercase tracking-widest opacity-60"
         >
           Last
         </span>
         <span className="flex-1 min-w-0 truncate">
           <LogEntryRow entry={entry} state={state} selfId={selfId} variant="ribbon" />
         </span>
-        <span aria-hidden className="opacity-50 text-[11px]">
+        <span aria-hidden className="opacity-60 text-[11px]">
           ▸
         </span>
       </div>

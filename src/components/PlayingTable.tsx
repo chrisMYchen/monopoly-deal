@@ -727,6 +727,23 @@ function Wrapper({ state, children }: { state: ProjectedGameState; children: Rea
   // collapse the log.
   const [playLogOpen, setPlayLogOpen] = useState(false);
   const openPlayLog = () => setPlayLogOpen(true);
+  // Yield the sheet to higher-priority game state — if pending shifts to
+  // something that requires the local player to act (JSN response, payment,
+  // or end-of-turn discard), close the sheet so the prompting dialog has
+  // the screen to itself.
+  const pending = state.pending;
+  const selfId = state.selfId;
+  useEffect(() => {
+    if (!playLogOpen || !pending) return;
+    const requiresSelf =
+      (pending.kind === "awaitJustSayNo" &&
+        (pending.responderIsActor
+          ? pending.declaration.sourceId === selfId
+          : pending.pendingDefenders[0] === selfId)) ||
+      (pending.kind === "awaitPayment" && pending.payerId === selfId) ||
+      (pending.kind === "awaitDiscardToLimit" && pending.playerId === selfId);
+    if (requiresSelf) setPlayLogOpen(false);
+  }, [pending, selfId, playLogOpen]);
   return (
     <LayoutGroup>
       <main
@@ -796,7 +813,7 @@ function TopBanner({
             onClick={onOpenPlayLog}
             aria-label="Open play log"
             data-testid="open-play-log"
-            className="sm:hidden inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-widest opacity-80 transition hover:bg-white/10"
+            className="sm:hidden inline-flex min-h-11 items-center gap-1 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest opacity-80 transition hover:bg-white/10"
           >
             <span aria-hidden>📜</span>
             Log
