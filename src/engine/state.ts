@@ -107,6 +107,22 @@ export type Pending =
       reason: "moved-during-payment";
     };
 
+// Room-scoped configuration. Set in lobby, frozen at START_GAME. Only field
+// today is the per-decision turn timer; null = off.
+export type RoomSettings = {
+  turnTimerSeconds: number | null;
+};
+
+export const ALLOWED_TURN_TIMER_SECONDS: ReadonlyArray<number | null> = [
+  null,
+  30,
+  60,
+  90,
+  120,
+];
+
+export const DEFAULT_TURN_TIMER_SECONDS = 60;
+
 export type GameState = {
   phase: "lobby" | "playing" | "ended";
   players: Player[];
@@ -119,6 +135,7 @@ export type GameState = {
   log: LogEntry[];
   rngState: number;          // mulberry32 seed; advances on every random op
   winnerId?: PlayerId;
+  settings: RoomSettings;
 };
 
 export function emptyTableau(): TableauGroup[] {

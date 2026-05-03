@@ -10,7 +10,13 @@ import { projectStateForPlayer } from "../../src/engine/project";
 import type { GameState, PlayerId } from "../../src/engine/state";
 import type { ClientToServer, ServerToClient } from "./protocol";
 
-type SessionInfo = { sessionId: string; playerId: PlayerId | null };
+type SessionInfo = {
+  sessionId: string;
+  playerId: PlayerId | null;
+  recentActionIds: string[];
+};
+
+const RECENT_ACTIONS_PER_SESSION = 64;
 
 class RoomState {
   game: GameState = initialLobby();
@@ -138,7 +144,11 @@ const server = Bun.serve({
             if (!session) {
               const existingPlayer = room.game.players.find((p) => p.id === msg.sessionId);
               if (existingPlayer) {
-                session = { sessionId: msg.sessionId, playerId: msg.sessionId };
+                session = {
+                  sessionId: msg.sessionId,
+                  playerId: msg.sessionId,
+                  recentActionIds: [],
+                };
                 room.sessions.set(msg.sessionId, session);
                 if (!room.hostSessionId) room.hostSessionId = msg.sessionId;
                 room.game = produce(room.game, (draft) => {
@@ -167,7 +177,7 @@ const server = Bun.serve({
                 });
               });
               if (!room.hostSessionId) room.hostSessionId = msg.sessionId;
-              session = { sessionId: msg.sessionId, playerId };
+              session = { sessionId: msg.sessionId, playerId, recentActionIds: [] };
               room.sessions.set(msg.sessionId, session);
             } else {
               const sessId = session!.playerId;
@@ -208,11 +218,29 @@ const server = Bun.serve({
             const session = data.sessionId ? room.sessions.get(data.sessionId) : null;
             if (!session?.playerId) return send(ws, { type: "error", message: "not joined" });
             const action = msg.action;
+            // Idempotent replay: if we've seen this clientActionId already,
+            // re-send the latest state (so the reconnected client gets a
+            // fresh snapshot) and skip applying.
+            if (msg.clientActionId && session.recentActionIds.includes(msg.clientActionId)) {
+              const projected = projectStateForPlayer(room.game, session.playerId);
+              send(ws, { type: "state", state: projected });
+              return;
+            }
             if ("playerId" in action && action.playerId !== session.playerId) {
               return send(ws, { type: "error", message: "playerId mismatch" });
             }
             room.game = applyAction(room.game, action);
+            if (msg.clientActionId) {
+              session.recentActionIds.push(msg.clientActionId);
+              if (session.recentActionIds.length > RECENT_ACTIONS_PER_SESSION) {
+                session.recentActionIds.shift();
+              }
+            }
             broadcast(room);
+            return;
+          }
+          case "ping": {
+            send(ws, { type: "pong", t: msg.t });
             return;
           }
         }

@@ -27,9 +27,17 @@ export type ProjectedGameState = Omit<GameState, "players" | "drawPile" | "disca
   discardCount: number;
   // The viewing player's id (echoed for convenience).
   selfId: PlayerId;
+  // When the on-clock player must act by — server epoch ms. Absent when the
+  // timer is off, the game isn't in progress, or no one is on the clock.
+  // Clients render a local countdown; the server is authoritative.
+  turnDeadlineMs?: number;
 };
 
-export function projectStateForPlayer(state: GameState, selfId: PlayerId): ProjectedGameState {
+export function projectStateForPlayer(
+  state: GameState,
+  selfId: PlayerId,
+  turnDeadlineMs?: number,
+): ProjectedGameState {
   const players: ProjectedPlayer[] = state.players.map((p) => {
     const isSelf = p.id === selfId;
     return {
@@ -57,7 +65,9 @@ export function projectStateForPlayer(state: GameState, selfId: PlayerId): Proje
     log: [...state.log],
     rngState: 0, // never expose RNG seed to clients
     winnerId: state.winnerId,
+    settings: state.settings,
     players,
     selfId,
+    turnDeadlineMs,
   };
 }

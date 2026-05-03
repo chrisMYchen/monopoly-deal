@@ -6,8 +6,17 @@ import { PlayerAvatar } from "./PlayerAvatar";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useGame } from "@/lib/gameStore";
 import { colorForPlayerId } from "@/lib/playerColor";
+import type { WsClient } from "@/lib/wsClient";
 
-export function Lobby({ onStart }: { onStart: () => void }) {
+const TIMER_OPTIONS: ReadonlyArray<{ value: number | null; label: string }> = [
+  { value: null, label: "Off" },
+  { value: 30, label: "30s" },
+  { value: 60, label: "60s" },
+  { value: 90, label: "90s" },
+  { value: 120, label: "120s" },
+];
+
+export function Lobby({ client, onStart }: { client: WsClient; onStart: () => void }) {
   const state = useGame((s) => s.state);
   const isHost = useGame((s) => s.isHost);
   const selfId = useGame((s) => s.selfId);
@@ -145,6 +154,20 @@ export function Lobby({ onStart }: { onStart: () => void }) {
         </ul>
       </section>
 
+      <TurnTimerSetting
+        isHost={isHost}
+        selfId={selfId}
+        currentValue={state.settings?.turnTimerSeconds ?? null}
+        onChange={(value) => {
+          if (!selfId) return;
+          client.sendAction({
+            type: "UPDATE_SETTINGS",
+            playerId: selfId,
+            settings: { turnTimerSeconds: value },
+          });
+        }}
+      />
+
       {isHost ? (
         <div className="flex w-full flex-col items-center gap-2">
           <button
@@ -161,7 +184,7 @@ export function Lobby({ onStart }: { onStart: () => void }) {
         <p className="text-sm opacity-60">{startHint}</p>
       )}
 
-      <details className="mt-2 w-full text-sm opacity-80">
+      <details className="mt-1 w-full text-sm opacity-80">
         <summary className="cursor-pointer text-xs uppercase tracking-widest opacity-60">
           How to play
         </summary>
@@ -182,5 +205,61 @@ export function Lobby({ onStart }: { onStart: () => void }) {
         </div>
       </details>
     </main>
+  );
+}
+
+function TurnTimerSetting({
+  isHost,
+  selfId,
+  currentValue,
+  onChange,
+}: {
+  isHost: boolean;
+  selfId: string | null;
+  currentValue: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  const labelFor = (v: number | null) =>
+    TIMER_OPTIONS.find((o) => o.value === v)?.label ?? `${v}s`;
+
+  if (!isHost || !selfId) {
+    return (
+      <section
+        className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+        data-testid="turn-timer-setting"
+      >
+        <span className="opacity-70">Turn timer</span>
+        <span className="font-medium" data-testid="turn-timer-value">
+          {labelFor(currentValue)}
+        </span>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+      data-testid="turn-timer-setting"
+    >
+      <label htmlFor="turn-timer" className="opacity-80">
+        Turn timer
+      </label>
+      <select
+        id="turn-timer"
+        data-testid="turn-timer-select"
+        value={currentValue == null ? "off" : String(currentValue)}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "off" ? null : Number(v));
+        }}
+        className="rounded border border-white/15 bg-zinc-900 px-2 py-1 text-sm focus:border-white/60 focus:outline-none"
+      >
+        {TIMER_OPTIONS.map((opt) => (
+          <option key={opt.label} value={opt.value == null ? "off" : String(opt.value)}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </section>
   );
 }

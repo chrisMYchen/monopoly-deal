@@ -55,8 +55,7 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
           setError(m);
           setTimeout(() => setError(null), 4000);
         },
-        onOpen: () => setConnection("open"),
-        onClose: () => setConnection("closed"),
+        onStatus: (s) => setConnection(s),
       },
     });
     wsRef.current = client;
@@ -113,11 +112,19 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
   }
 
   if (!state) {
+    const label =
+      connection === "reconnecting"
+        ? `Reconnecting to room ${roomCode}…`
+        : connection === "closed"
+          ? "Connection closed."
+          : `Connecting to room ${roomCode}…`;
     return (
       <main className="flex min-h-dvh items-center justify-center p-6 text-center">
         <div>
-          <p>Connecting to room {roomCode}...</p>
-          {connection === "closed" && <p className="mt-2 text-sm text-red-300">Connection lost.</p>}
+          <p>{label}</p>
+          {connection === "reconnecting" && (
+            <p className="mt-2 text-sm opacity-70">Trying to restore your seat…</p>
+          )}
         </div>
       </main>
     );
@@ -130,8 +137,12 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
           {errorBanner}
         </div>
       )}
-      {state.phase === "lobby" && (
+      {(connection === "reconnecting" || connection === "connecting") && (
+        <ConnectionBanner status={connection} />
+      )}
+      {state.phase === "lobby" && wsRef.current && (
         <Lobby
+          client={wsRef.current}
           onStart={() => {
             wsRef.current?.start();
           }}
@@ -140,5 +151,21 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
       {state.phase === "playing" && wsRef.current && <PlayingTable client={wsRef.current} />}
       {state.phase === "ended" && <ResultsScreen />}
     </>
+  );
+}
+
+// Small, non-blocking pill at the top center while the socket is recovering.
+// We keep the table fully interactive — actions are buffered by wsClient and
+// replayed on reconnect with idempotency keys.
+function ConnectionBanner({ status }: { status: "reconnecting" | "connecting" }) {
+  const text = status === "reconnecting" ? "Reconnecting…" : "Connecting…";
+  return (
+    <div
+      className="fixed left-1/2 top-2 z-40 -translate-x-1/2 rounded-full bg-amber-500/90 px-3 py-1 text-xs font-medium text-zinc-900 shadow"
+      role="status"
+      aria-live="polite"
+    >
+      {text}
+    </div>
   );
 }
