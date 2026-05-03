@@ -12,7 +12,7 @@ export type GameStoreState = {
   isHost: boolean;
   roomCode: string;
   errorBanner: string | null;
-  connection: "connecting" | "open" | "closed";
+  connection: "connecting" | "open" | "reconnecting" | "closed";
 };
 
 export type GameStoreActions = {

@@ -1,5 +1,13 @@
-// Thin WebSocket client — connects to the room DO, joins with session+name,
+// Robust WebSocket client — connects to the room DO, joins with session+name,
 // receives projected state, and exposes a sendAction helper.
+//
+// Robustness features:
+//   - Auto-reconnect with exponential backoff (1s -> 15s) until close() is called
+//   - Heartbeat: ping every 20s; if no pong within 10s, force a reconnect
+//   - Action replay: every action carries a clientActionId; pending actions
+//     stay in a queue until the next state echo arrives, then are dropped.
+//     On reconnect, pending actions are re-sent — the server dedupes by
+//     clientActionId so each action applies at most once.
 //
 // Lifecycle: created in a React effect, returns `close()` for teardown. State
 // changes flow into a Zustand store (see `gameStore.ts`).
@@ -8,12 +16,13 @@ import type { Action } from "@/engine/reduce";
 import type { ProjectedGameState } from "@/engine/project";
 import type { PlayerId } from "@/engine/state";
 
+export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
+
 export type WsClientHandlers = {
   onJoined: (info: { playerId: PlayerId; isHost: boolean; roomCode: string }) => void;
   onState: (state: ProjectedGameState) => void;
   onError: (message: string) => void;
-  onOpen?: () => void;
-  onClose?: () => void;
+  onStatus?: (status: ConnectionStatus) => void;
 };
 
 export type WsClient = {
@@ -24,13 +33,13 @@ export type WsClient = {
   close: () => void;
 };
 
-// Mirrors worker/src/protocol.ts ClientToServer minus the type narrowness for
-// import simplicity. Kept as a discriminated union so callers stay typed.
+// Mirrors worker/src/protocol.ts ClientToServer.
 export type ClientToServerLike =
   | { type: "join"; sessionId: string; name: string }
   | { type: "leave" }
   | { type: "start"; rngSeed?: number }
-  | { type: "action"; action: Action };
+  | { type: "action"; action: Action; clientActionId?: string }
+  | { type: "ping"; t: number };
 
 export type WsConfig = {
   workerOrigin: string; // e.g. "http://localhost:8787"
@@ -40,54 +49,190 @@ export type WsConfig = {
   handlers: WsClientHandlers;
 };
 
+const PING_INTERVAL_MS = 20_000;
+const PONG_TIMEOUT_MS = 10_000;
+const BACKOFF_START_MS = 1_000;
+const BACKOFF_MAX_MS = 15_000;
+
 export function connectRoom(cfg: WsConfig): WsClient {
   const wsScheme = cfg.workerOrigin.startsWith("https") ? "wss" : "ws";
   const wsUrl = cfg.workerOrigin.replace(/^https?/, wsScheme) + `/r/${cfg.roomCode}/ws`;
-  const socket = new WebSocket(wsUrl);
 
+  let socket: WebSocket | null = null;
   let opened = false;
-  // Buffer messages sent before open.
-  const queue: ClientToServerLike[] = [];
+  let closedByUser = false;
+  let attempt = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let pingTimer: ReturnType<typeof setInterval> | null = null;
+  let pongTimer: ReturnType<typeof setTimeout> | null = null;
 
-  function rawSend(msg: ClientToServerLike) {
-    socket.send(JSON.stringify(msg));
+  // Pending outbound actions, kept until acknowledged by a state echo. Each
+  // action carries a clientActionId so the server can dedupe replays.
+  type PendingAction = {
+    clientActionId: string;
+    msg: Extract<ClientToServerLike, { type: "action" }>;
+  };
+  const pendingActions: PendingAction[] = [];
+
+  // Non-action messages sent before the socket opens (e.g. "start", "leave").
+  // Cleared on each open since handleJoin re-sends "join" automatically.
+  const preOpenQueue: ClientToServerLike[] = [];
+
+  let status: ConnectionStatus = "connecting";
+  function setStatus(next: ConnectionStatus): void {
+    if (status === next) return;
+    status = next;
+    cfg.handlers.onStatus?.(next);
   }
 
-  function send(msg: ClientToServerLike) {
-    if (opened && socket.readyState === WebSocket.OPEN) rawSend(msg);
-    else queue.push(msg);
+  function clearTimers(): void {
+    if (pingTimer) {
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
+    if (pongTimer) {
+      clearTimeout(pongTimer);
+      pongTimer = null;
+    }
   }
 
-  socket.addEventListener("open", () => {
-    opened = true;
-    rawSend({ type: "join", sessionId: cfg.sessionId, name: cfg.name });
-    while (queue.length > 0) rawSend(queue.shift()!);
-    cfg.handlers.onOpen?.();
-  });
+  function startHeartbeat(): void {
+    clearTimers();
+    pingTimer = setInterval(() => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      try {
+        socket.send(JSON.stringify({ type: "ping", t: Date.now() }));
+      } catch {
+        // ignore — close handler will trigger reconnect
+      }
+      // If we don't see a pong before timeout, treat the socket as dead.
+      if (pongTimer) clearTimeout(pongTimer);
+      pongTimer = setTimeout(() => {
+        // Force-close so onclose path schedules a reconnect.
+        try {
+          socket?.close(4000, "pong timeout");
+        } catch {
+          // ignore
+        }
+      }, PONG_TIMEOUT_MS);
+    }, PING_INTERVAL_MS);
+  }
 
-  socket.addEventListener("message", (ev) => {
-    let msg: any;
+  function rawSend(msg: ClientToServerLike): boolean {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
     try {
-      msg = JSON.parse(ev.data);
+      socket.send(JSON.stringify(msg));
+      return true;
     } catch {
+      return false;
+    }
+  }
+
+  function send(msg: ClientToServerLike): void {
+    if (msg.type === "action") {
+      // Tag the action and remember it until the server echoes state.
+      const clientActionId = msg.clientActionId ?? newActionId();
+      const tagged: PendingAction["msg"] = { ...msg, clientActionId };
+      pendingActions.push({ clientActionId, msg: tagged });
+      if (!rawSend(tagged)) {
+        // Will be re-sent on next open via flushPending().
+      }
       return;
     }
-    switch (msg.type) {
-      case "joined":
-        cfg.handlers.onJoined(msg);
-        break;
-      case "state":
-        cfg.handlers.onState(msg.state);
-        break;
-      case "error":
-        cfg.handlers.onError(msg.message);
-        break;
-    }
-  });
+    if (opened && rawSend(msg)) return;
+    preOpenQueue.push(msg);
+  }
 
-  socket.addEventListener("close", () => {
-    cfg.handlers.onClose?.();
-  });
+  function flushPending(): void {
+    // After (re)connect, replay pending actions. Server dedupes by clientActionId.
+    for (const p of pendingActions) rawSend(p.msg);
+    while (preOpenQueue.length > 0) {
+      const m = preOpenQueue[0]!;
+      if (!rawSend(m)) break;
+      preOpenQueue.shift();
+    }
+  }
+
+  function scheduleReconnect(): void {
+    if (closedByUser) return;
+    setStatus("reconnecting");
+    const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_START_MS * Math.pow(2, attempt));
+    attempt += 1;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(open, delay);
+  }
+
+  function open(): void {
+    if (closedByUser) return;
+    if (status !== "reconnecting") setStatus("connecting");
+    let s: WebSocket;
+    try {
+      s = new WebSocket(wsUrl);
+    } catch {
+      scheduleReconnect();
+      return;
+    }
+    socket = s;
+    opened = false;
+
+    s.addEventListener("open", () => {
+      opened = true;
+      attempt = 0;
+      setStatus("open");
+      // Always re-send join first — the server uses sessionId to re-attach.
+      rawSend({ type: "join", sessionId: cfg.sessionId, name: cfg.name });
+      flushPending();
+      startHeartbeat();
+    });
+
+    s.addEventListener("message", (ev) => {
+      let msg: any;
+      try {
+        msg = JSON.parse(typeof ev.data === "string" ? ev.data : "");
+      } catch {
+        return;
+      }
+      switch (msg.type) {
+        case "joined":
+          cfg.handlers.onJoined(msg);
+          break;
+        case "state":
+          // Treat any state echo as ack for currently-pending actions: the
+          // server applies them in order, so once we see fresh state it's safe
+          // to drop the queue. (Worst case: a duplicate replay is deduped
+          // server-side by clientActionId.)
+          pendingActions.length = 0;
+          cfg.handlers.onState(msg.state);
+          break;
+        case "error":
+          cfg.handlers.onError(msg.message);
+          break;
+        case "pong":
+          if (pongTimer) {
+            clearTimeout(pongTimer);
+            pongTimer = null;
+          }
+          break;
+      }
+    });
+
+    s.addEventListener("close", () => {
+      clearTimers();
+      opened = false;
+      socket = null;
+      if (closedByUser) {
+        setStatus("closed");
+        return;
+      }
+      scheduleReconnect();
+    });
+
+    s.addEventListener("error", () => {
+      // The browser will also fire 'close' — let that handler do the work.
+    });
+  }
+
+  open();
 
   return {
     send,
@@ -95,11 +240,27 @@ export function connectRoom(cfg: WsConfig): WsClient {
     start: (rngSeed) => send({ type: "start", rngSeed }),
     leave: () => send({ type: "leave" }),
     close: () => {
+      closedByUser = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      clearTimers();
       try {
-        socket.close();
+        socket?.close(1000, "client close");
       } catch {
         // ignore
       }
+      socket = null;
+      setStatus("closed");
     },
   };
+}
+
+function newActionId(): string {
+  // Short random id is sufficient: dedup is per-session.
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }

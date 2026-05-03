@@ -12,6 +12,8 @@ import {
   type SetColor,
 } from "./cards";
 import {
+  ALLOWED_TURN_TIMER_SECONDS,
+  DEFAULT_TURN_TIMER_SECONDS,
   findGroup,
   findGroupIndex,
   type DeclaredAction,
@@ -19,6 +21,7 @@ import {
   type Pending,
   type Player,
   type PlayerId,
+  type RoomSettings,
   type TableauGroup,
 } from "./state";
 import { shuffle } from "./rng";
@@ -67,7 +70,8 @@ export type Action =
   | { type: "RESPOND_JSN"; playerId: PlayerId; play: boolean; cardId?: CardId }
   | { type: "PAY"; playerId: PlayerId; cardIds: CardId[] }
   | { type: "DISCARD_TO_LIMIT"; playerId: PlayerId; cardIds: CardId[] }
-  | { type: "END_TURN"; playerId: PlayerId };
+  | { type: "END_TURN"; playerId: PlayerId }
+  | { type: "UPDATE_SETTINGS"; playerId: PlayerId; settings: Partial<RoomSettings> };
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -143,6 +147,28 @@ function reduce(s: GameState, a: Action): void {
       return discardToLimit(s, a);
     case "END_TURN":
       return endTurn(s, a);
+    case "UPDATE_SETTINGS":
+      return updateSettings(s, a);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// UPDATE_SETTINGS — host-configurable lobby settings (host check is server-side)
+// ---------------------------------------------------------------------------
+
+function updateSettings(
+  s: GameState,
+  a: Extract<Action, { type: "UPDATE_SETTINGS" }>,
+): void {
+  if (s.phase !== "lobby") {
+    throw new RuleError("settings can only change in the lobby");
+  }
+  const next = a.settings;
+  if (next.turnTimerSeconds !== undefined) {
+    if (!ALLOWED_TURN_TIMER_SECONDS.includes(next.turnTimerSeconds)) {
+      throw new RuleError("invalid turn timer value");
+    }
+    s.settings.turnTimerSeconds = next.turnTimerSeconds;
   }
 }
 
@@ -1289,6 +1315,7 @@ export function initialLobby(): GameState {
     pending: null,
     log: [],
     rngState: 1,
+    settings: { turnTimerSeconds: DEFAULT_TURN_TIMER_SECONDS },
   };
 }
 

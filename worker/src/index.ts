@@ -3,6 +3,7 @@
 import { produce } from "immer";
 
 import { applyAction, RuleError, initialLobby } from "../../src/engine/reduce";
+import { autoActionFor, onClockPlayerId } from "../../src/engine/autoAction";
 import { projectStateForPlayer } from "../../src/engine/project";
 import type { GameState, PlayerId } from "../../src/engine/state";
 import type { ClientToServer, ServerToClient } from "./protocol";
@@ -66,7 +67,18 @@ function generateRoomCode(): string {
 type SessionInfo = {
   sessionId: string;
   playerId: PlayerId | null;
+  // Ring buffer of recently-applied clientActionIds. Lets us silently dedupe
+  // action replays after a client reconnect.
+  recentActionIds: string[];
 };
+
+const RECENT_ACTIONS_PER_SESSION = 64;
+
+// Storage keys for game state persistence — survives DO eviction so a brief
+// idle period can't wipe the room out from under players.
+const STORAGE_KEY_GAME = "game";
+const STORAGE_KEY_HOST = "host";
+const STORAGE_KEY_CODE = "code";
 
 export class Room {
   private state: DurableObjectState;
@@ -77,9 +89,39 @@ export class Room {
   private sockets = new Map<string, WebSocket>();
   private hostSessionId: string | null = null;
   private roomCode: string | null = null;
+  // Coalesce frequent storage writes: at most one write in flight at a time,
+  // with the latest snapshot scheduled if a write lands during one.
+  private pendingPersist = false;
+  private persisting = false;
+  // Server epoch ms by which the on-clock player must act, or null when no
+  // clock is running. Mirrored into storage.setAlarm() so the DO wakes from
+  // hibernation right when the deadline expires.
+  private currentDeadlineMs: number | null = null;
 
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
+    // Rehydrate from storage on (re)start so DO eviction during idle doesn't
+    // lose the in-progress game. blockConcurrencyWhile keeps requests waiting
+    // until restoration completes.
+    this.state.blockConcurrencyWhile(async () => {
+      const [game, host, code, alarm] = await Promise.all([
+        this.state.storage.get<GameState>(STORAGE_KEY_GAME),
+        this.state.storage.get<string>(STORAGE_KEY_HOST),
+        this.state.storage.get<string>(STORAGE_KEY_CODE),
+        this.state.storage.getAlarm(),
+      ]);
+      if (game) {
+        // Old games persisted before the settings field existed — backfill so
+        // we don't crash with `cannot read settings of undefined`.
+        if (!game.settings) {
+          game.settings = { turnTimerSeconds: 60 };
+        }
+        this.game = game;
+      }
+      if (host) this.hostSessionId = host;
+      if (code) this.roomCode = code;
+      if (alarm) this.currentDeadlineMs = alarm;
+    });
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -87,7 +129,10 @@ export class Room {
 
     if (url.pathname === "/init") {
       const code = url.searchParams.get("code");
-      if (code && !this.roomCode) this.roomCode = code;
+      if (code && !this.roomCode) {
+        this.roomCode = code;
+        await this.state.storage.put(STORAGE_KEY_CODE, code);
+      }
       return new Response("ok");
     }
 
@@ -130,7 +175,11 @@ export class Room {
             break;
           case "action":
             if (!mySessionId) return this.sendError(socket, "not joined");
-            this.handleAction(mySessionId, msg.action);
+            this.handleAction(mySessionId, msg.action, msg.clientActionId);
+            break;
+          case "ping":
+            // Heartbeat reply — no work, just echo `t`.
+            this.send(socket, { type: "pong", t: msg.t });
             break;
           default:
             this.sendError(socket, "unknown message type");
@@ -143,7 +192,11 @@ export class Room {
 
     socket.addEventListener("close", () => {
       if (!mySessionId) return;
-      this.sockets.delete(mySessionId);
+      // Only clear the live socket if it's still the one we have for this
+      // session — a fast reconnect might have already replaced it.
+      if (this.sockets.get(mySessionId) === socket) {
+        this.sockets.delete(mySessionId);
+      }
       // Mark player as disconnected; keep their slot for now (reconnect grace).
       const session = this.sessions.get(mySessionId);
       const playerId = session?.playerId;
@@ -152,6 +205,7 @@ export class Room {
           const player = draft.players.find((p) => p.id === playerId);
           if (player) player.connected = false;
         });
+        this.persistGame();
         this.broadcastState();
       }
     });
@@ -177,9 +231,12 @@ export class Room {
     if (!session) {
       const existing = this.game.players.find((p) => p.id === msg.sessionId);
       if (existing) {
-        session = { sessionId: msg.sessionId, playerId: msg.sessionId };
+        session = { sessionId: msg.sessionId, playerId: msg.sessionId, recentActionIds: [] };
         this.sessions.set(msg.sessionId, session);
-        if (!this.hostSessionId) this.hostSessionId = msg.sessionId;
+        if (!this.hostSessionId) {
+          this.hostSessionId = msg.sessionId;
+          this.persistHost();
+        }
         this.game = produce(this.game, (draft) => {
           const player = draft.players.find((p) => p.id === msg.sessionId);
           if (player) player.connected = true;
@@ -207,17 +264,22 @@ export class Room {
           connected: true,
         });
       });
-      if (!this.hostSessionId) this.hostSessionId = msg.sessionId;
-      session = { sessionId: msg.sessionId, playerId };
+      if (!this.hostSessionId) {
+        this.hostSessionId = msg.sessionId;
+        this.persistHost();
+      }
+      session = { sessionId: msg.sessionId, playerId, recentActionIds: [] };
       this.sessions.set(msg.sessionId, session);
     } else {
       // Reconnect: mark connected.
-      const sessId = session!.playerId;
+      const sessId = session.playerId;
       this.game = produce(this.game, (draft) => {
         const player = draft.players.find((p) => p.id === sessId);
         if (player) player.connected = true;
       });
     }
+
+    this.persistGame();
 
     const isHost = this.hostSessionId === msg.sessionId;
     this.send(socket, {
@@ -239,7 +301,9 @@ export class Room {
           draft.players = draft.players.filter((p) => p.id !== leavingId);
         });
         if (this.hostSessionId === sessionId) {
-          this.hostSessionId = this.sessions.size > 1 ? Array.from(this.sessions.keys()).find((s) => s !== sessionId) ?? null : null;
+          const next = Array.from(this.sessions.keys()).find((s) => s !== sessionId) ?? null;
+          this.hostSessionId = next;
+          this.persistHost();
         }
       }
       this.sessions.delete(sessionId);
@@ -256,6 +320,8 @@ export class Room {
         });
       }
     }
+    this.persistGame();
+    void this.armOrClearAlarm();
     this.broadcastState();
   }
 
@@ -275,18 +341,52 @@ export class Room {
       rngSeed: rngSeed ?? (Date.now() & 0x7fffffff),
       players: playersForStart,
     });
+    this.persistGame();
+    void this.armOrClearAlarm();
     this.broadcastState();
   }
 
-  private handleAction(sessionId: string, action: Parameters<typeof applyAction>[1]): void {
+  private handleAction(
+    sessionId: string,
+    action: Parameters<typeof applyAction>[1],
+    clientActionId?: string,
+  ): void {
     const session = this.sessions.get(sessionId);
     if (!session?.playerId) throw new RuleError("session has no player");
+
+    // Idempotent replay handling: if we've already applied this action id,
+    // just re-broadcast the latest state (so the reconnected client gets a
+    // fresh snapshot) and do nothing else.
+    if (clientActionId && session.recentActionIds.includes(clientActionId)) {
+      const sock = this.sockets.get(sessionId);
+      if (sock) {
+        const projected = projectStateForPlayer(this.game, session.playerId);
+        this.send(sock, { type: "state", state: projected });
+      }
+      return;
+    }
+
     // Server-side authority: any action's playerId must match the session's
     // player. Engine still enforces turn/pending logic on top.
     if ("playerId" in action && action.playerId !== session.playerId) {
       throw new RuleError("playerId mismatch");
     }
+    // Lobby settings are host-only — engine doesn't know who the host is, so
+    // we gate it here.
+    if (action.type === "UPDATE_SETTINGS" && sessionId !== this.hostSessionId) {
+      throw new RuleError("only host can change room settings");
+    }
     this.game = applyAction(this.game, action);
+
+    if (clientActionId) {
+      session.recentActionIds.push(clientActionId);
+      if (session.recentActionIds.length > RECENT_ACTIONS_PER_SESSION) {
+        session.recentActionIds.shift();
+      }
+    }
+
+    this.persistGame();
+    void this.armOrClearAlarm();
     this.broadcastState();
   }
 
@@ -305,11 +405,107 @@ export class Room {
   }
 
   private broadcastState(): void {
+    const deadline = this.currentDeadlineMs ?? undefined;
     for (const [sessionId, socket] of this.sockets) {
       const session = this.sessions.get(sessionId);
       if (!session?.playerId) continue;
-      const projected = projectStateForPlayer(this.game, session.playerId);
+      const projected = projectStateForPlayer(this.game, session.playerId, deadline);
       this.send(socket, { type: "state", state: projected });
     }
+  }
+
+  // Sets or clears the per-decision turn timer. Called after every state-
+  // changing handler. Idempotent: skips storage churn when the deadline
+  // hasn't materially changed (within 250ms).
+  private async armOrClearAlarm(): Promise<void> {
+    const timerSec = this.game.settings?.turnTimerSeconds;
+    const someoneOnClock = onClockPlayerId(this.game) !== null;
+    if (!someoneOnClock || timerSec == null) {
+      if (this.currentDeadlineMs != null) {
+        this.currentDeadlineMs = null;
+        try {
+          await this.state.storage.deleteAlarm();
+        } catch {
+          // ignore
+        }
+      }
+      return;
+    }
+    const next = Date.now() + timerSec * 1000;
+    this.currentDeadlineMs = next;
+    try {
+      await this.state.storage.setAlarm(next);
+    } catch {
+      // ignore — worst case the next handler re-sets it
+    }
+  }
+
+  // Cloudflare DO Alarms callback. Fires when the deadline we set arrives.
+  // We auto-resolve whatever decision the on-clock player owes, broadcast,
+  // and re-arm for the next on-clock player.
+  async alarm(): Promise<void> {
+    // If state advanced after the alarm was scheduled (someone acted right
+    // before the alarm fired), re-arm to the current deadline and bail.
+    if (this.currentDeadlineMs != null && Date.now() < this.currentDeadlineMs - 250) {
+      try {
+        await this.state.storage.setAlarm(this.currentDeadlineMs);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    const auto = autoActionFor(this.game);
+    if (auto) {
+      try {
+        this.game = applyAction(this.game, auto);
+        const onClock = onClockPlayerId(this.game);
+        const onClockName =
+          this.game.players.find((p) => p.id === onClock)?.name ?? "";
+        this.game = produce(this.game, (draft) => {
+          draft.log.push({
+            at: draft.currentTurn,
+            message: `Auto-action fired (timer expired)${onClockName ? `; now ${onClockName}` : ""}.`,
+          });
+        });
+        this.persistGame();
+      } catch {
+        // The engine rejected the auto-action — should be rare. Leave state
+        // alone and just re-arm so we try again in `timerSec` seconds.
+      }
+    }
+
+    await this.armOrClearAlarm();
+    this.broadcastState();
+  }
+
+  // Coalesced async write: never blocks message handling, never queues more
+  // than one pending write. The latest game snapshot at write time is what
+  // lands on disk.
+  private persistGame(): void {
+    if (this.persisting) {
+      this.pendingPersist = true;
+      return;
+    }
+    this.persisting = true;
+    const write = async (): Promise<void> => {
+      try {
+        await this.state.storage.put(STORAGE_KEY_GAME, this.game);
+      } catch {
+        // ignore — next action will retry
+      }
+      if (this.pendingPersist) {
+        this.pendingPersist = false;
+        await write();
+        return;
+      }
+      this.persisting = false;
+    };
+    // Fire and forget; durable object runtime keeps it alive while pending.
+    void write();
+  }
+
+  private persistHost(): void {
+    void this.state.storage.put(STORAGE_KEY_HOST, this.hostSessionId ?? "");
   }
 }

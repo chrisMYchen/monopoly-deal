@@ -50,6 +50,7 @@ import { PlayerAvatar } from "./PlayerAvatar";
 import { SetProgress } from "./SetProgress";
 import { TableauView } from "./TableauView";
 import { Toasts } from "./Toasts";
+import { TurnTimerPill } from "./TurnTimerPill";
 import { colorForPlayerId } from "@/lib/playerColor";
 import { ACTION_DESCRIPTIONS, ACTION_LABELS } from "@/engine/cards";
 import { distinctCompletedSets, rentForGroup as rentForUI } from "@/engine/selectors";
@@ -688,8 +689,12 @@ function TopBanner({ state }: { state: ProjectedGameState }) {
       ].join(" ")}
       data-testid="turn-banner"
     >
-      <div className="font-semibold">
+      <div className="flex items-center justify-center gap-2 font-semibold">
         {isMyTurn ? "Your turn" : `${cur.name}'s turn`}
+        <TurnTimerPill
+          deadlineMs={state.turnDeadlineMs}
+          totalSeconds={state.settings?.turnTimerSeconds ?? null}
+        />
       </div>
       <div className="text-xs opacity-70">
         {state.hasDrawnThisTurn ? `${state.playsRemaining} plays left` : "needs to draw"}
