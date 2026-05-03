@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { getWorkerOrigin } from "@/lib/config";
-import { getOrCreateSessionId, getStoredName, setStoredName } from "@/lib/identity";
+import {
+  getOrCreateSessionId,
+  getStoredName,
+  markNameFreshlyConfirmed,
+  setStoredName,
+} from "@/lib/identity";
 
 export default function Home() {
   const router = useRouter();
@@ -22,6 +27,7 @@ export default function Home() {
   const onCreate = async () => {
     if (!name.trim()) return setError("enter your name");
     setStoredName(name.trim());
+    markNameFreshlyConfirmed();
     setBusy(true);
     setError(null);
     try {
@@ -36,11 +42,14 @@ export default function Home() {
     }
   };
 
+  // Join-by-code: only the code is required from this page. The /r/ route's
+  // join screen handles name entry, so an invitee who lands here can hop
+  // straight into the lobby with one input.
   const onJoin = () => {
-    if (!name.trim()) return setError("enter your name");
-    if (!code.trim()) return setError("enter a room code");
-    setStoredName(name.trim());
-    router.push(`/r/?code=${code.trim().toUpperCase()}`);
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return setError("enter a room code");
+    setError(null);
+    router.push(`/r/?code=${trimmed}`);
   };
 
   return (
@@ -63,6 +72,41 @@ export default function Home() {
       </header>
 
       <div className="flex w-full max-w-sm flex-col gap-3">
+        <section className="flex flex-col gap-2 rounded-lg border border-white/10 bg-white/5 p-3">
+          <p className="text-xs uppercase tracking-widest opacity-60">Have a code?</p>
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onJoin();
+            }}
+          >
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="XXXX"
+              maxLength={6}
+              autoComplete="off"
+              className="h-11 min-w-0 flex-1 rounded-md border border-white/20 bg-white/5 px-3 text-center font-mono text-lg tracking-[0.4em] outline-none focus:border-white/60"
+              data-testid="code-input"
+            />
+            <button
+              type="submit"
+              disabled={busy || !code.trim()}
+              className="h-11 shrink-0 rounded-md border border-white/30 px-4 font-semibold transition hover:border-white/60 disabled:opacity-50"
+              data-testid="join-room"
+            >
+              Join
+            </button>
+          </form>
+        </section>
+
+        <div className="flex items-center gap-2 text-xs opacity-50">
+          <span className="h-px flex-1 bg-white/20" />
+          or start a new game
+          <span className="h-px flex-1 bg-white/20" />
+        </div>
+
         <label className="flex flex-col gap-1 text-left text-sm opacity-90">
           Your name
           <input
@@ -82,32 +126,6 @@ export default function Home() {
           data-testid="create-room"
         >
           {busy ? "Creating..." : "Create game"}
-        </button>
-
-        <div className="flex items-center gap-2 text-xs opacity-50">
-          <span className="h-px flex-1 bg-white/20" />
-          or
-          <span className="h-px flex-1 bg-white/20" />
-        </div>
-
-        <label className="flex flex-col gap-1 text-left text-sm opacity-90">
-          Room code
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder="XXXX"
-            maxLength={6}
-            className="h-11 rounded-md border border-white/20 bg-white/5 px-3 text-center font-mono text-lg tracking-[0.4em] outline-none focus:border-white/60"
-            data-testid="code-input"
-          />
-        </label>
-        <button
-          onClick={onJoin}
-          disabled={busy}
-          className="h-11 rounded-md border border-white/30 px-4 font-semibold transition hover:border-white/60 disabled:opacity-50"
-          data-testid="join-room"
-        >
-          Join with code
         </button>
 
         {error && (

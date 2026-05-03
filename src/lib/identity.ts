@@ -8,6 +8,11 @@
 
 const NAME_KEY = "rr.name";
 const SESSION_KEY = "rr.sessionId";
+// One-shot marker the home page sets right before navigating into /r/?code=X
+// so the joiner page knows the stored name was *just* picked here and can skip
+// the confirmation prompt. Invitees arriving via a shared link don't have it,
+// so they always see the name confirmation step.
+const FRESH_NAME_KEY = "rr.nameFreshlyConfirmed";
 
 export function getOrCreateSessionId(): string {
   if (typeof window === "undefined") return "";
@@ -46,4 +51,18 @@ export function setStoredName(name: string): void {
 export function resetSession(): void {
   if (typeof window === "undefined") return;
   window.sessionStorage.setItem(SESSION_KEY, newSessionId());
+}
+
+export function markNameFreshlyConfirmed(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(FRESH_NAME_KEY, "1");
+}
+
+// Reads + clears the fresh-name marker. Returns true once per home-page hop;
+// any subsequent reload of /r/ sees the prompt again as a normal invitee would.
+export function consumeFreshNameMarker(): boolean {
+  if (typeof window === "undefined") return false;
+  const v = window.sessionStorage.getItem(FRESH_NAME_KEY);
+  if (v) window.sessionStorage.removeItem(FRESH_NAME_KEY);
+  return v === "1";
 }

@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getWorkerOrigin } from "@/lib/config";
-import { getOrCreateSessionId, getStoredName, setStoredName } from "@/lib/identity";
+import {
+  consumeFreshNameMarker,
+  getOrCreateSessionId,
+  getStoredName,
+  setStoredName,
+} from "@/lib/identity";
 import { useGame } from "@/lib/gameStore";
 import { connectRoom, type WsClient } from "@/lib/wsClient";
 
@@ -23,19 +28,23 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
 
   const wsRef = useRef<WsClient | null>(null);
 
-  // Joiners arriving via a shared link won't have a name stored yet — gate the
-  // WS connection on a name being set so they can pick how they appear in the
-  // lobby. Hosts who came through the home page already have a stored name and
-  // skip this step.
+  // Joiners arriving via a shared link should always confirm their display
+  // name, even if localStorage already has one from a previous session — the
+  // person on the other end of the link may not be the same person who last
+  // played here. Hosts who just came through the home page set a one-shot
+  // sessionStorage marker so they can skip the prompt.
   const [name, setName] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
 
   useEffect(() => {
     const stored = getStoredName().trim();
-    if (stored) {
+    const fromHome = consumeFreshNameMarker();
+    if (fromHome && stored) {
       setName(stored);
     } else {
-      setDraftName("");
+      // Pre-fill the form so returning users still get a one-tap join, but
+      // they can edit before confirming.
+      setDraftName(stored);
     }
   }, []);
 
