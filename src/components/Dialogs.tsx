@@ -16,8 +16,35 @@ import {
   type SetColor,
 } from "@/engine/cards";
 import type { ProjectedGameState, ProjectedPlayer } from "@/engine/project";
-import type { DeclaredAction } from "@/engine/state";
+import type { DeclaredAction, LogEntry } from "@/engine/state";
 import { isComplete } from "@/engine/reduce";
+
+import { lastMustShow } from "./log/logFilters";
+import { LogEntryRow } from "./log/LogEntryRow";
+
+// Compact "what triggered this dialog" surface, rendered above the existing
+// dialog body so a defender deciding whether to JSN, or a payer about to
+// hand over cards, sees a rich, color-coded record of the action they're
+// responding to.
+function TriggerEntryCard({
+  entry,
+  state,
+  selfId,
+}: {
+  entry: LogEntry | null | undefined;
+  state: ProjectedGameState;
+  selfId?: string;
+}) {
+  if (!entry) return null;
+  return (
+    <div className="mb-3 rounded border border-[var(--color-ink)]/15 bg-[var(--color-bg-tint)] px-2.5 py-2 text-[var(--color-ink)]">
+      <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest opacity-50">
+        Triggering action
+      </div>
+      <LogEntryRow entry={entry} state={state} selfId={selfId} variant="dialog" />
+    </div>
+  );
+}
 
 // A reusable modal frame.
 function Modal({
@@ -39,7 +66,7 @@ function Modal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.08, ease: "linear" }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-inked)]/55 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       data-testid={testId}
@@ -48,14 +75,16 @@ function Modal({
         initial={{ opacity: 0, scale: 0.96, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.14, ease: [0.18, 0.9, 0.3, 1.05] }}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/15 bg-zinc-900 p-4 shadow-2xl"
+        className="surface-paper max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-5"
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{title}</h3>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="font-display text-xl font-semibold text-[var(--color-ink)]">
+            {title}
+          </h3>
           {onCancel && (
             <button
               onClick={onCancel}
-              className="rounded px-2 py-1 text-sm opacity-70 hover:bg-white/10 hover:opacity-100"
+              className="rounded-full px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-bg-tint)] hover:text-[var(--color-ink)]"
               data-testid="dialog-cancel"
             >
               Cancel
@@ -382,11 +411,16 @@ export function PaymentDialog({
   payer,
   amountOwed,
   reason,
+  state,
+  selfId,
   onSubmit,
 }: {
   payer: ProjectedPlayer;
   amountOwed: number;
   reason?: string;
+  // For inline rendering of the triggering log entry above the prompt.
+  state: ProjectedGameState;
+  selfId?: string;
   onSubmit: (cardIds: CardId[]) => void;
 }) {
   const [selected, setSelected] = useState<Set<CardId>>(new Set());
@@ -409,8 +443,10 @@ export function PaymentDialog({
     });
   }
 
+  const triggerEntry = lastMustShow(state.log);
   return (
     <Modal title={`You owe $${amountOwed}M`} testId="payment-dialog">
+      <TriggerEntryCard entry={triggerEntry} state={state} selfId={selfId} />
       {reason && (
         <p className="mb-2 text-xs uppercase tracking-widest opacity-60">{reason}</p>
       )}
@@ -525,6 +561,8 @@ export function JsnPrompt({
   jsnInventory,
   preview,
   chainDepth,
+  state,
+  selfId,
   onPlay,
   onPass,
 }: {
@@ -538,11 +576,17 @@ export function JsnPrompt({
   preview?: { kind: "card"; cardId: CardId } | { kind: "amount"; amount: number };
   // How deep the JSN war is (0 = first response). Useful to convey escalation.
   chainDepth: number;
+  // For inline rendering of the triggering log entry — the most recent
+  // must-show entry is the action the responder is being asked to cancel.
+  state: ProjectedGameState;
+  selfId?: string;
   onPlay: (cardId: CardId) => void;
   onPass: () => void;
 }) {
+  const triggerEntry = lastMustShow(state.log);
   return (
     <Modal title={chainDepth === 0 ? "Just Say No?" : `Counter war · depth ${chainDepth}`} testId="jsn-prompt">
+      <TriggerEntryCard entry={triggerEntry} state={state} selfId={selfId} />
       <p className="mb-2 font-semibold">{responderName}, your call:</p>
       <p className="mb-3 text-sm opacity-80">{prompt}</p>
       {preview?.kind === "card" && (
@@ -619,6 +663,7 @@ export function SpectatorPendingOverlay({ state }: { state: ProjectedGameState }
     return null;
   }
 
+  const triggerEntry = lastMustShow(state.log);
   return (
     <div
       className="pointer-events-none fixed left-1/2 top-20 z-40 -translate-x-1/2 rounded-md border border-yellow-300/40 bg-zinc-900/85 px-4 py-2 text-center shadow-xl backdrop-blur"
@@ -626,6 +671,16 @@ export function SpectatorPendingOverlay({ state }: { state: ProjectedGameState }
     >
       <div className="text-sm font-semibold">{title}</div>
       {detail && <div className="text-xs opacity-70">{detail}</div>}
+      {triggerEntry && (
+        <div className="pointer-events-none mt-2 flex justify-center text-left text-white/85">
+          <LogEntryRow
+            entry={triggerEntry}
+            state={state}
+            selfId={state.selfId}
+            variant="dialog"
+          />
+        </div>
+      )}
     </div>
   );
 }

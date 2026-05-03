@@ -18,19 +18,22 @@ export function attachConfettiCanvas(canvas: HTMLCanvasElement | null): void {
   instance = confetti.create(canvas, { resize: true, useWorker: true });
 }
 
-// Pick a subtle but party-coded palette per property color group.
+// Per-color confetti palettes — tuned to land vibrantly on the warm parchment
+// background. Each palette includes a darker base, a punchy mid, and a cream
+// highlight so the burst reads as fireworks rather than scattered confetti.
 const COLOR_PALETTE: Record<string, string[]> = {
-  brown: ["#a16207", "#b45309", "#fde68a"],
-  lightBlue: ["#7dd3fc", "#38bdf8", "#e0f2fe"],
-  pink: ["#f9a8d4", "#ec4899", "#fce7f3"],
-  orange: ["#fb923c", "#f97316", "#fed7aa"],
-  red: ["#ef4444", "#dc2626", "#fecaca"],
-  yellow: ["#facc15", "#eab308", "#fef08a"],
-  green: ["#22c55e", "#16a34a", "#bbf7d0"],
-  darkBlue: ["#2563eb", "#1d4ed8", "#bfdbfe"],
-  railroad: ["#4b5563", "#1f2937", "#e5e7eb"],
-  utility: ["#a3e635", "#84cc16", "#ecfccb"],
-  win: ["#facc15", "#fb923c", "#22c55e", "#38bdf8", "#ec4899"],
+  brown: ["#8B5A2B", "#B57A3F", "#FAEFD2"],
+  lightBlue: ["#6FB6D9", "#A5D5EE", "#FAF4E8"],
+  pink: ["#D9568F", "#F19BC0", "#FAF4E8"],
+  orange: ["#ED7C2A", "#F5A56A", "#FAF4E8"],
+  red: ["#CC2E2E", "#E27272", "#FAF4E8"],
+  yellow: ["#E6B82A", "#F2D472", "#FAF4E8"],
+  green: ["#2C8E50", "#5DB57E", "#FAF4E8"],
+  darkBlue: ["#2A4FB0", "#6E89D6", "#FAF4E8"],
+  railroad: ["#1F1F1F", "#5C5C5C", "#FAF4E8"],
+  utility: ["#B0C436", "#D2DE7A", "#FAF4E8"],
+  // Win: the brand palette — gold + coral + mint + parchment highlight.
+  win: ["#E0B341", "#C8531A", "#2F8F70", "#0F2A2E", "#FAF4E8"],
 };
 
 export function burstFromRect(rect: DOMRect, color?: string): void {

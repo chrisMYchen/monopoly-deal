@@ -3,9 +3,10 @@
 import { useState } from "react";
 
 import { PlayerAvatar } from "./PlayerAvatar";
+import { Button } from "./ui/Button";
+import { Wordmark } from "./ui/Wordmark";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useGame } from "@/lib/gameStore";
-import { colorForPlayerId } from "@/lib/playerColor";
 import type { WsClient } from "@/lib/wsClient";
 
 const TIMER_OPTIONS: ReadonlyArray<{ value: number | null; label: string }> = [
@@ -13,7 +14,7 @@ const TIMER_OPTIONS: ReadonlyArray<{ value: number | null; label: string }> = [
   { value: 30, label: "30s" },
   { value: 60, label: "60s" },
   { value: 90, label: "90s" },
-  { value: 120, label: "120s" },
+  { value: 120, label: "2m" },
 ];
 
 export function Lobby({ client, onStart }: { client: WsClient; onStart: () => void }) {
@@ -34,7 +35,7 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
   if (!isHost) {
     startHint = `Waiting for ${hostName} to start.`;
   } else if (players.length < 2) {
-    startHint = "Need at least 2 players to start.";
+    startHint = "Bring at least one friend to start.";
   } else if (!allOnline) {
     startHint = "Waiting for disconnected players to come back…";
   }
@@ -76,79 +77,112 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center gap-6 p-6">
-      <header className="text-center">
-        <h1 className="text-3xl font-bold">Lobby</h1>
-        <p className="mt-1 opacity-70">Share this code with friends:</p>
+    <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-6 p-6">
+      <header className="flex flex-col items-center gap-3 text-center">
+        <Wordmark size="md" />
+        <p className="font-display text-base italic text-[var(--color-ink-soft)]">
+          Pull up a chair — share this code:
+        </p>
+
         <button
           onClick={copyCode}
           aria-label="Copy room code"
-          className="mt-2 inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/10 px-4 py-2 font-mono text-3xl tracking-[0.4em] transition hover:bg-white/15"
           data-testid="copy-code"
+          className="surface-paper mt-1 inline-flex items-center gap-3 rounded-2xl px-6 py-3 transition hover:translate-y-[-1px]"
         >
-          {roomCode}
-          <span className="font-sans text-xs uppercase tracking-widest opacity-60">
-            {copied === "code" ? "copied!" : "copy"}
+          <span className="font-mono text-4xl font-semibold tracking-[0.4em] text-[var(--color-ink)] sm:text-5xl">
+            {roomCode}
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
+            {copied === "code" ? "copied!" : "tap to copy"}
           </span>
         </button>
-        <div className="mt-2 flex justify-center gap-2">
-          <button
+
+        <div className="mt-1 flex w-full max-w-sm gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={copyLink}
-            className="rounded-md border border-white/15 px-3 py-1 text-xs uppercase tracking-widest opacity-80 hover:bg-white/5"
+            fullWidth
             data-testid="copy-link"
           >
-            {copied === "link" ? "copied!" : "Copy link"}
-          </button>
-          <button
+            {copied === "link" ? "Copied!" : "Copy link"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={shareLink}
-            className="rounded-md border border-white/15 px-3 py-1 text-xs uppercase tracking-widest opacity-80 hover:bg-white/5"
+            fullWidth
             data-testid="share-link"
           >
             Share link
-          </button>
+          </Button>
         </div>
       </header>
 
-      <section className="w-full">
-        <h2 className="mb-2 text-sm uppercase tracking-widest opacity-60">
+      <section className="flex flex-col gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-soft)]">
           Players ({players.length}/5)
         </h2>
         <ul className="flex flex-col gap-2">
           {players.map((p, i) => {
-            const color = colorForPlayerId(p.id);
             const isSelf = p.id === selfId;
+            const isHostRow = i === 0;
             return (
               <li
                 key={p.id}
-                className={[
-                  "flex items-center justify-between gap-3 rounded-md border px-3 py-2",
-                  isSelf ? "border-yellow-300/60 bg-yellow-300/5" : color.border + " " + color.bg,
-                ].join(" ")}
                 data-testid="lobby-player"
+                className={[
+                  "surface-paper flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5",
+                  isSelf
+                    ? "ring-2 ring-[var(--color-accent)]/60 ring-offset-2 ring-offset-[var(--color-bg)]"
+                    : "",
+                ].join(" ")}
               >
-                <span className="flex items-center gap-2 font-medium">
-                  <PlayerAvatar id={p.id} name={p.name} />
-                  {p.name}
+                <span className="flex items-center gap-2.5 font-medium text-[var(--color-ink)]">
+                  <span
+                    className={
+                      isHostRow
+                        ? "rounded-full ring-2 ring-[var(--color-gold)] ring-offset-2 ring-offset-[var(--color-paper)]"
+                        : ""
+                    }
+                  >
+                    <PlayerAvatar id={p.id} name={p.name} />
+                  </span>
+                  <span>{p.name}</span>
                   {isSelf && (
-                    <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-widest opacity-70">
+                    <span className="rounded-full bg-[var(--color-bg-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
                       you
                     </span>
                   )}
-                  {i === 0 && (
-                    <span className="rounded bg-amber-300/20 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-amber-200">
+                  {isHostRow && (
+                    <span className="rounded-full bg-[var(--color-gold)]/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-gold-deep)]">
                       host
                     </span>
                   )}
                 </span>
-                <span className={`text-xs ${p.connected ? "opacity-60" : "text-red-300/80"}`}>
+                <span
+                  className={[
+                    "flex items-center gap-1.5 text-xs font-medium",
+                    p.connected ? "text-[var(--color-mint)]" : "text-[var(--color-accent)]",
+                  ].join(" ")}
+                >
+                  <span
+                    aria-hidden
+                    className={[
+                      "inline-block h-2 w-2 rounded-full",
+                      p.connected ? "bg-[var(--color-mint)]" : "bg-[var(--color-accent)]",
+                    ].join(" ")}
+                  />
                   {p.connected ? "online" : "offline"}
                 </span>
               </li>
             );
           })}
           {players.length < 5 && (
-            <li className="rounded-md border border-dashed border-white/15 px-3 py-2 text-sm opacity-50">
-              Waiting for players… (up to 5)
+            <li className="surface-tint flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm italic text-[var(--color-ink-soft)]">
+              <span aria-hidden>🪑</span>
+              Waiting for someone to sit down…
             </li>
           )}
         </ul>
@@ -170,22 +204,27 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
 
       {isHost ? (
         <div className="flex w-full flex-col items-center gap-2">
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={onStart}
             disabled={!canStart}
-            className="h-11 w-full rounded-md bg-white/90 px-4 font-semibold text-zinc-900 transition disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="start-game"
+            iconTrailing={<span aria-hidden>→</span>}
           >
             Start game
-          </button>
-          {!canStart && <p className="text-xs opacity-60">{startHint}</p>}
+          </Button>
+          {!canStart && (
+            <p className="text-sm italic text-[var(--color-ink-soft)]">{startHint}</p>
+          )}
         </div>
       ) : (
-        <p className="text-sm opacity-60">{startHint}</p>
+        <p className="text-sm italic text-[var(--color-ink-soft)]">{startHint}</p>
       )}
 
-      <details className="mt-1 w-full text-sm opacity-80">
-        <summary className="cursor-pointer text-xs uppercase tracking-widest opacity-60">
+      <details className="mt-1 w-full text-sm text-[var(--color-ink)]">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-soft)]">
           How to play
         </summary>
         <div className="mt-2 space-y-2 leading-relaxed">
@@ -198,9 +237,9 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
             cards → end your turn. End-of-turn hand limit is 7.
           </p>
           <p>
-            Cards can be played as <em>property</em> (laid down in front of you), as <em>money</em> (into
-            your bank, sideways), or for their <em>action</em> effect. Wild cards must join an
-            existing same-color group; rainbow wilds need at least one solid card with them.
+            Cards can be played as <em>property</em> (laid down in front of you), as <em>money</em>{" "}
+            (into your bank, sideways), or for their <em>action</em> effect. Wild cards must join
+            an existing same-color group; rainbow wilds need at least one solid card with them.
           </p>
         </div>
       </details>
@@ -225,41 +264,56 @@ function TurnTimerSetting({
   if (!isHost || !selfId) {
     return (
       <section
-        className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+        className="surface-paper flex w-full items-center justify-between rounded-2xl px-4 py-2.5 text-sm"
         data-testid="turn-timer-setting"
       >
-        <span className="opacity-70">Turn timer</span>
-        <span className="font-medium" data-testid="turn-timer-value">
+        <span className="text-[var(--color-ink-soft)]">Turn timer</span>
+        <span className="font-mono font-semibold text-[var(--color-ink)]" data-testid="turn-timer-value">
           {labelFor(currentValue)}
         </span>
       </section>
     );
   }
 
+  // Host gets a segmented control — every option visible, one tap to change.
   return (
     <section
-      className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+      className="surface-paper flex w-full flex-col gap-2 rounded-2xl px-4 py-3"
       data-testid="turn-timer-setting"
     >
-      <label htmlFor="turn-timer" className="opacity-80">
-        Turn timer
-      </label>
-      <select
-        id="turn-timer"
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-semibold text-[var(--color-ink)]">Turn timer</span>
+        <span className="text-xs italic text-[var(--color-ink-soft)]">
+          {labelFor(currentValue)}
+        </span>
+      </div>
+      <div
+        role="radiogroup"
+        aria-label="Turn timer"
+        className="surface-tint flex gap-1 rounded-full p-1"
         data-testid="turn-timer-select"
-        value={currentValue == null ? "off" : String(currentValue)}
-        onChange={(e) => {
-          const v = e.target.value;
-          onChange(v === "off" ? null : Number(v));
-        }}
-        className="rounded border border-white/15 bg-zinc-900 px-2 py-1 text-sm focus:border-white/60 focus:outline-none"
       >
-        {TIMER_OPTIONS.map((opt) => (
-          <option key={opt.label} value={opt.value == null ? "off" : String(opt.value)}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+        {TIMER_OPTIONS.map((opt) => {
+          const active =
+            (opt.value == null && currentValue == null) || opt.value === currentValue;
+          return (
+            <button
+              key={opt.label}
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(opt.value)}
+              className={[
+                "flex-1 rounded-full px-2 py-1.5 text-sm font-semibold transition",
+                active
+                  ? "bg-[var(--color-inked)] text-[var(--color-ink-inverse)] shadow-sm"
+                  : "text-[var(--color-ink-soft)] hover:bg-[var(--color-paper)]",
+              ].join(" ")}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
     </section>
   );
 }

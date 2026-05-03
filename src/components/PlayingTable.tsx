@@ -26,6 +26,7 @@ import type { Action } from "@/engine/reduce";
 import { useGame } from "@/lib/gameStore";
 import type { WsClient } from "@/lib/wsClient";
 
+import { Button } from "./ui/Button";
 import { Card, CardBack } from "./Card";
 import { FxToggles } from "./FxToggles";
 import {
@@ -48,6 +49,8 @@ import { HandView } from "./HandView";
 import { HelpButton } from "./HelpSheet";
 import { OpponentStrip } from "./OpponentStrip";
 import { PlayerAvatar } from "./PlayerAvatar";
+import { PlayLogSheet } from "./PlayLogSheet";
+import { RecentsRibbon } from "./RecentsRibbon";
 import { SetProgress } from "./SetProgress";
 import { PropertySetsView } from "./PropertySetsView";
 import { Toasts } from "./Toasts";
@@ -328,6 +331,8 @@ function PlayingTableInner({
             jsnInventory={jsnsInHand.length}
             preview={preview}
             chainDepth={w.jsnStack.length}
+            state={state}
+            selfId={selfId}
             onPlay={(cid) =>
               send({ type: "RESPOND_JSN", playerId: selfId, play: true, cardId: cid })
             }
@@ -345,6 +350,8 @@ function PlayingTableInner({
           payer={self}
           amountOwed={state.pending.amountOwed}
           reason={describeDeclaration(state.pending.declaration, state)}
+          state={state}
+          selfId={selfId}
           onSubmit={(cardIds) => send({ type: "PAY", playerId: selfId, cardIds })}
         />
         <SelfArea
@@ -712,36 +719,61 @@ function Wrapper({ state, children }: { state: ProjectedGameState; children: Rea
   // entire game surface: a card moving from hand to play area, or from one
   // player's properties to another's via Sly Deal, animates smoothly because
   // both endpoints share the same `layoutId="card-<id>"`.
+  //
+  // playLog open/close lives here so the ribbon, the chevron in TopBanner,
+  // and the sheet share the same toggle. State resets when transitioning
+  // between branches of the if-cascade (e.g. opening a draft picker), which
+  // is the desired behavior — anything more important than the log should
+  // collapse the log.
+  const [playLogOpen, setPlayLogOpen] = useState(false);
+  const openPlayLog = () => setPlayLogOpen(true);
   return (
     <LayoutGroup>
       <main
         data-table-root
         className="flex min-h-dvh flex-col gap-2 p-2 pb-40 sm:p-4 sm:pb-40"
       >
-        <TopBanner state={state} />
-        {children}
-        <GameLog log={state.log} />
-        <Toasts log={state.log} selfId={state.selfId} />
+        <div className="sticky top-2 z-30 flex flex-col gap-1.5">
+          <TopBanner state={state} onOpenPlayLog={openPlayLog} />
+          <RecentsRibbon state={state} selfId={state.selfId} onOpen={openPlayLog} />
+        </div>
+        {/* Felt panel: parchment "room" wraps a contained green "table". */}
+        <section className="surface-felt flex flex-col gap-2 rounded-2xl p-2 sm:p-3">
+          {children}
+        </section>
+        <GameLog state={state} />
+        <Toasts state={state} selfId={state.selfId} />
+        <PlayLogSheet
+          state={state}
+          selfId={state.selfId}
+          open={playLogOpen}
+          onClose={() => setPlayLogOpen(false)}
+        />
         <HelpButton />
       </main>
     </LayoutGroup>
   );
 }
 
-function TopBanner({ state }: { state: ProjectedGameState }) {
+function TopBanner({
+  state,
+  onOpenPlayLog,
+}: {
+  state: ProjectedGameState;
+  onOpenPlayLog?: () => void;
+}) {
   const cur = state.players[state.currentTurn]!;
   const pendingMsg = describePending(state);
   const isMyTurn = state.selfId === cur.id;
   const onClockId = onClockPlayerIdFromProjected(state);
   return (
     <div
-      // Sticky so the timer + plays-remaining pills stay visible regardless of
-      // scroll. The translucent backdrop matches the bottom action bar so the
-      // two read as a paired "cockpit" anchoring the play surface.
+      // Inked surface paired with the bottom action bar — the two read as a
+      // "cockpit" anchoring the felt table. Sticky lives on the parent so the
+      // banner and the recents ribbon stick together.
       className={[
-        "sticky top-2 z-30 rounded-md border px-3 py-2 text-center text-sm transition-colors",
-        "bg-zinc-900/80 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/65",
-        isMyTurn ? "rr-pulse" : "border-white/15",
+        "surface-inked rounded-2xl px-3 py-2 text-center text-sm transition-colors",
+        isMyTurn ? "rr-pulse" : "",
       ].join(" ")}
       data-testid="turn-banner"
     >
@@ -758,6 +790,18 @@ function TopBanner({ state }: { state: ProjectedGameState }) {
           dim={!isMyTurn}
         />
         <FxToggles />
+        {onOpenPlayLog && (
+          <button
+            type="button"
+            onClick={onOpenPlayLog}
+            aria-label="Open play log"
+            data-testid="open-play-log"
+            className="sm:hidden inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-widest opacity-80 transition hover:bg-white/10"
+          >
+            <span aria-hidden>📜</span>
+            Log
+          </button>
+        )}
       </div>
       {pendingMsg && <div className="text-xs opacity-70">{pendingMsg}</div>}
     </div>
@@ -1074,13 +1118,15 @@ function ActionBar({
   if (!state.hasDrawnThisTurn) {
     return (
       <BarShell>
-        <button
+        <Button
+          variant="primary"
+          size="lg"
           onClick={onDraw}
-          className="h-11 flex-1 rounded-md bg-white/90 font-semibold text-zinc-900"
+          fullWidth
           data-testid="draw-button"
         >
           Draw {self.hand.length === 0 ? "5" : "2"}
-        </button>
+        </Button>
       </BarShell>
     );
   }
@@ -1089,7 +1135,7 @@ function ActionBar({
     const playsLeft = state.playsRemaining;
     return (
       <BarShell>
-        <p className="flex-1 self-center text-sm opacity-70">
+        <p className="flex-1 self-center text-sm text-[var(--color-ink-inverse)]/80">
           Tap a card in your hand to play, or end your turn.
         </p>
         <EndTurnButton playsLeft={playsLeft} onEndTurn={onEndTurn} />
@@ -1126,35 +1172,35 @@ function EndTurnButton({
 
   if (confirming) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-yellow-300/50 bg-yellow-300/10 px-2 py-1 text-xs">
-        <span className="opacity-90">{playsLeft} plays unused — really end?</span>
-        <button
+      <div className="flex items-center gap-2 rounded-full bg-[var(--color-gold)]/15 px-3 py-1 text-xs ring-1 ring-[var(--color-gold)]/40">
+        <span className="text-[var(--color-ink-inverse)]/95">
+          {playsLeft} plays unused — really end?
+        </span>
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => {
             setConfirming(false);
             onEndTurn();
           }}
-          className="h-9 rounded-md bg-white/90 px-3 font-semibold text-zinc-900"
           data-testid="end-turn-confirm"
         >
           Yes, end
-        </button>
-        <button
-          onClick={() => setConfirming(false)}
-          className="h-9 rounded-md border border-white/30 px-3 font-semibold"
-        >
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
           Cancel
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <button
+    <Button
+      variant="secondary"
       onClick={() => {
         if (playsLeft > 0) setConfirming(true);
         else onEndTurn();
       }}
-      className="h-11 rounded-md border border-white/30 px-4 font-semibold hover:bg-white/5"
       data-testid="end-turn-button"
       title={
         playsLeft > 0
@@ -1163,14 +1209,14 @@ function EndTurnButton({
       }
     >
       End turn
-    </button>
+    </Button>
   );
 }
 
 function BarShell({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-30 flex flex-wrap items-center gap-2 border-t border-white/15 bg-zinc-900/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur"
+      className="surface-inked fixed bottom-0 left-0 right-0 z-30 flex flex-wrap items-center gap-2 rounded-t-2xl border-t-0 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_-12px_rgba(15,42,46,0.4)]"
       data-testid="action-bar"
     >
       {children}
@@ -1206,7 +1252,7 @@ function CardActionButtons({
   const banks = (
     <button
       onClick={() => onPlay({ type: "PLAY_AS_MONEY", playerId: selfId, cardId })}
-      className="h-11 flex-1 min-w-[120px] rounded-md bg-emerald-500 px-3 font-semibold text-white hover:bg-emerald-400"
+      className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-emerald-500 px-3 font-semibold text-white hover:bg-emerald-400"
       data-testid="bank-button"
       title={`Bank this card sideways as $${valueOf(card)}M.`}
     >
@@ -1216,8 +1262,13 @@ function CardActionButtons({
 
   // Hint label rendered alongside buttons.
   const hintLabel = (
-    <div className="flex w-full items-center gap-2 text-[11px] opacity-70" aria-live="polite">
-      <span className="rounded bg-white/10 px-1.5 py-0.5 uppercase tracking-widest">{cardKindLabel(card)}</span>
+    <div
+      className="flex w-full items-center gap-2 text-[11px] text-[var(--color-ink-inverse)]/75"
+      aria-live="polite"
+    >
+      <span className="rounded-full bg-[var(--color-ink-inverse)]/10 px-2 py-0.5 font-semibold uppercase tracking-[0.16em]">
+        {cardKindLabel(card)}
+      </span>
       <span className="leading-tight">{mechanicHint}</span>
     </div>
   );
@@ -1243,7 +1294,7 @@ function CardActionButtons({
                 assignedColor: card.set,
               })
             }
-            className="h-11 flex-1 min-w-[120px] rounded-md bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
+            className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
             data-testid="play-property-button"
           >
             Place in {card.set}
@@ -1256,7 +1307,7 @@ function CardActionButtons({
           {hintLabel}
           <button
             onClick={() => beginDraft({ kind: "wild-place", cardId, allowed: card.sets as SetColor[] })}
-            className="h-11 flex-1 min-w-[120px] rounded-md bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
+            className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
             data-testid="play-wild2-button"
           >
             Place wild ({card.sets.join("/")})
@@ -1269,7 +1320,7 @@ function CardActionButtons({
           {hintLabel}
           <button
             onClick={() => beginDraft({ kind: "wild-place", cardId, allowed: ALL_COLORS })}
-            className="h-11 flex-1 min-w-[120px] rounded-md bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
+            className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
             data-testid="play-wild10-button"
           >
             Place wild
@@ -1290,7 +1341,7 @@ function CardActionButtons({
             <>
               <button
                 onClick={() => onPlay({ type: "PLAY_PASS_GO", playerId: selfId, cardId })}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
                 data-testid="play-action-button"
                 title="Draw 2 extra cards now."
               >
@@ -1304,7 +1355,7 @@ function CardActionButtons({
             <>
               <button
                 onClick={() => beginDraft({ kind: "sly-pick-target", cardId })}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-purple-500 px-3 font-semibold text-white hover:bg-purple-400"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-purple-500 px-3 font-semibold text-white hover:bg-purple-400"
                 data-testid="play-action-button"
                 title="Steal one property from an opponent (not in a complete set)."
               >
@@ -1320,7 +1371,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "forced-pick-mine", cardId })}
                 disabled={!myTradable}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-purple-500 px-3 font-semibold text-white hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-purple-500 px-3 font-semibold text-white hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={myTradable ? "Trade one of your properties for an opponent's." : "Need at least one of your own properties (not in a complete set) to trade."}
               >
@@ -1339,7 +1390,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "breaker-pick-target", cardId })}
                 disabled={!anyComplete}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-red-500 px-3 font-semibold text-white hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-red-500 px-3 font-semibold text-white hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={anyComplete ? "Steal a complete set." : "No opponent has a complete set to take."}
               >
@@ -1354,7 +1405,7 @@ function CardActionButtons({
             <>
               <button
                 onClick={() => beginDraft({ kind: "debt-pick-target", cardId })}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-orange-500 px-3 font-semibold text-white hover:bg-orange-400"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-orange-500 px-3 font-semibold text-white hover:bg-orange-400"
                 data-testid="play-action-button"
                 title="Force one opponent to pay you $5M."
               >
@@ -1368,7 +1419,7 @@ function CardActionButtons({
             <>
               <button
                 onClick={() => onPlay({ type: "PLAY_BIRTHDAY", playerId: selfId, cardId })}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-pink-500 px-3 font-semibold text-white hover:bg-pink-400"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-pink-500 px-3 font-semibold text-white hover:bg-pink-400"
                 data-testid="play-action-button"
                 title="Every opponent owes you $2M."
               >
@@ -1386,7 +1437,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "house-pick", cardId, isHotel: false })}
                 disabled={!eligible}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-amber-500 px-3 font-semibold text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-amber-500 px-3 font-semibold text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={eligible ? "+$3M rent on a complete standard-color set." : "Need a complete standard-color set without a house yet."}
               >
@@ -1403,7 +1454,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "house-pick", cardId, isHotel: true })}
                 disabled={!eligible}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-amber-500 px-3 font-semibold text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-amber-500 px-3 font-semibold text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={eligible ? "+$4M rent on a complete set with a house." : "Need a complete set that already has a house."}
               >
@@ -1431,7 +1482,7 @@ function CardActionButtons({
                   })
                 }
                 disabled={!canCharge}
-                className="h-11 flex-1 min-w-[120px] rounded-md bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={
                   canCharge
