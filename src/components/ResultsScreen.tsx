@@ -6,9 +6,9 @@ import { useEffect } from "react";
 
 import { PlayerAvatar } from "./PlayerAvatar";
 import { PropertySetsView } from "./PropertySetsView";
+import { Button } from "./ui/Button";
 import { SET_DEFS } from "@/engine/cards";
 import { useGame } from "@/lib/gameStore";
-import { colorForPlayerId } from "@/lib/playerColor";
 import { playSfx } from "@/lib/animations/audio";
 import { winRoll } from "@/lib/animations/confetti";
 import { haptics } from "@/lib/animations/haptics";
@@ -41,24 +41,34 @@ export function ResultsScreen() {
   });
 
   return (
-    <main className="flex min-h-dvh flex-col items-center gap-6 p-6 text-center">
-      <header className="mt-6">
-        <div className="text-sm uppercase tracking-widest opacity-60">Game over</div>
-        <motion.h1
-          initial={{ scale: 0.4, opacity: 0, rotate: -8 }}
-          animate={{ scale: 1, opacity: 1, rotate: 0 }}
-          transition={{ type: "spring", stiffness: 220, damping: 11, mass: 0.9 }}
-          className="mt-2 text-5xl font-bold tracking-tight drop-shadow-[0_0_22px_rgba(250,204,21,0.4)]"
-        >
-          🏆 {winner?.name ?? "Game over"}!
-        </motion.h1>
+    <main className="flex min-h-dvh flex-col items-center gap-7 p-6 text-center">
+      <header className="mt-8 flex flex-col items-center gap-3">
+        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-ink-soft)]">
+          That's the game!
+        </div>
+        <div className="relative">
+          {/* Soft gold radial glow behind the trophy */}
+          <span
+            aria-hidden
+            className="absolute inset-0 -z-10 m-auto h-32 w-32 rounded-full bg-[var(--color-gold)]/30 blur-3xl"
+          />
+          <motion.h1
+            initial={{ scale: 0.4, opacity: 0, rotate: -8 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 220, damping: 11, mass: 0.9 }}
+            className="font-display text-5xl font-bold tracking-tight sm:text-6xl"
+          >
+            <span aria-hidden className="mr-3">🏆</span>
+            <span className="rr-foil">{winner?.name ?? "Game over"}!</span>
+          </motion.h1>
+        </div>
         <motion.p
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45, duration: 0.3 }}
-          className="mt-2 opacity-70"
+          className="font-display text-base italic text-[var(--color-ink-soft)]"
         >
-          Three sets, three colors, total dominance.
+          Three colors. Three sets. Game over.
         </motion.p>
       </header>
 
@@ -66,7 +76,6 @@ export function ResultsScreen() {
         {ranked.map((p, i) => {
           const isWin = p.id === state.winnerId;
           const completed = completedCount(p);
-          const color = colorForPlayerId(p.id);
           return (
             <motion.article
               key={p.id}
@@ -79,36 +88,48 @@ export function ResultsScreen() {
                 damping: 22,
               }}
               className={[
-                "flex flex-col gap-2 rounded-md border p-3 text-left",
-                isWin ? "border-yellow-300/60 bg-yellow-300/10" : `${color.border} ${color.bg}`,
+                "surface-paper flex flex-col gap-2 rounded-2xl p-4 text-left",
+                isWin
+                  ? "ring-2 ring-[var(--color-gold)] ring-offset-2 ring-offset-[var(--color-bg)]"
+                  : "",
               ].join(" ")}
               data-testid={`results-row-${i}`}
             >
-              <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-[var(--color-ink)]">
                   <PlayerAvatar id={p.id} name={p.name} />
-                  <span>{medal(i)} {p.name}</span>
+                  <span>
+                    <span aria-hidden className="mr-1">
+                      {medal(i)}
+                    </span>
+                    {p.name}
+                  </span>
+                  {isWin && (
+                    <span className="rounded-full bg-[var(--color-gold)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-inked)]">
+                      Winner
+                    </span>
+                  )}
                 </h2>
-                <span className="text-xs opacity-70">
+                <span className="text-xs font-semibold text-[var(--color-ink-soft)]">
                   {completed} complete set{completed === 1 ? "" : "s"}
                 </span>
               </div>
               {p.propertySets.length > 0 ? (
                 <PropertySetsView propertySets={p.propertySets} compact playerId={p.id} />
               ) : (
-                <div className="text-xs opacity-50">no properties</div>
+                <div className="text-xs italic text-[var(--color-ink-faint)]">
+                  no properties
+                </div>
               )}
             </motion.article>
           );
         })}
       </section>
 
-      <Link
-        href="/"
-        className="rounded-md bg-white/90 px-5 py-2 font-semibold text-zinc-900"
-        data-testid="back-home"
-      >
-        Back to home
+      <Link href="/" data-testid="back-home" className="mt-2">
+        <Button variant="primary" size="lg">
+          Back to home
+        </Button>
       </Link>
     </main>
   );

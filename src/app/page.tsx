@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/Button";
+import { Wordmark } from "@/components/ui/Wordmark";
 import { getWorkerOrigin } from "@/lib/config";
 import {
   getOrCreateSessionId,
@@ -53,27 +55,35 @@ export default function Home() {
   };
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 p-6 text-center">
-      {/* Decorative card stack — pure CSS, no assets. */}
-      <div aria-hidden className="relative mb-2 h-28 w-36">
-        <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[-8deg] rounded-md border border-red-900 bg-gradient-to-br from-red-600 to-red-800 shadow-2xl" />
-        <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[3deg] rounded-md border border-red-900 bg-gradient-to-br from-red-600 to-red-800 shadow-2xl" />
-        <div className="absolute left-1/2 top-1/2 flex h-full w-full -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-md border border-red-900 bg-gradient-to-br from-red-500 to-red-700 shadow-2xl">
-          <div className="font-display text-2xl uppercase leading-none tracking-tight text-white drop-shadow">Monopoly</div>
-          <div className="mt-1 font-display text-base uppercase leading-none tracking-[0.3em] text-white/90">Deal</div>
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-10 p-6 text-center">
+      {/* Decorative card stack — three rotated paper cards on parchment, with
+          a tiny gold border so the deck reads as premium. */}
+      <div aria-hidden className="relative h-32 w-40">
+        <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[-9deg] rounded-xl border border-[var(--color-set-dark-blue)]/40 bg-gradient-to-br from-[var(--color-set-dark-blue)] to-[#1a3680] shadow-[0_18px_40px_-12px_rgba(15,42,46,0.45)]" />
+        <div className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[5deg] rounded-xl border border-[var(--color-set-green)]/40 bg-gradient-to-br from-[var(--color-set-green)] to-[#1f6b3b] shadow-[0_18px_40px_-12px_rgba(15,42,46,0.45)]" />
+        <div className="absolute left-1/2 top-1/2 flex h-full w-full -translate-x-1/2 -translate-y-1/2 rotate-[-1deg] flex-col items-center justify-center rounded-xl border-2 border-[var(--color-gold)] bg-gradient-to-br from-[var(--color-set-red)] to-[#a8221f] shadow-[0_22px_50px_-14px_rgba(15,42,46,0.55)]">
+          <div className="font-card text-2xl uppercase leading-none tracking-tight text-white drop-shadow">
+            Monopoly
+          </div>
+          <div className="mt-1 font-card text-base uppercase leading-none tracking-[0.3em] text-white/95">
+            Deal
+          </div>
         </div>
       </div>
 
-      <header>
-        <h1 className="font-display text-6xl uppercase tracking-tight text-red-100 drop-shadow">Monopoly Deal</h1>
-        <p className="mt-2 text-base opacity-70">
+      <header className="flex flex-col items-center gap-2">
+        <Wordmark size="lg" />
+        <p className="font-display text-base italic text-[var(--color-ink-soft)]">
           A friendly card game of property and ruthless trades.
         </p>
       </header>
 
-      <div className="flex w-full max-w-sm flex-col gap-3">
-        <section className="flex flex-col gap-2 rounded-lg border border-white/10 bg-white/5 p-3">
-          <p className="text-xs uppercase tracking-widest opacity-60">Have a code?</p>
+      <div className="flex w-full max-w-sm flex-col gap-5">
+        {/* Have a code? — secondary entrypoint, sits above the divider. */}
+        <section className="surface-paper-warm flex flex-col gap-2 rounded-2xl p-4 text-left">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
+            Have a code?
+          </p>
           <form
             className="flex gap-2"
             onSubmit={(e) => {
@@ -87,49 +97,51 @@ export default function Home() {
               placeholder="XXXX"
               maxLength={6}
               autoComplete="off"
-              className="h-11 min-w-0 flex-1 rounded-md border border-white/20 bg-white/5 px-3 text-center font-mono text-lg tracking-[0.4em] outline-none focus:border-white/60"
+              className="h-11 min-w-0 flex-1 rounded-full border border-[var(--color-ink)]/15 bg-white px-4 text-center font-mono text-lg tracking-[0.4em] text-[var(--color-ink)] outline-none transition focus:border-[var(--color-accent)]"
               data-testid="code-input"
             />
-            <button
+            <Button
               type="submit"
+              variant="secondary"
               disabled={busy || !code.trim()}
-              className="h-11 shrink-0 rounded-md border border-white/30 px-4 font-semibold transition hover:border-white/60 disabled:opacity-50"
               data-testid="join-room"
             >
               Join
-            </button>
+            </Button>
           </form>
         </section>
 
-        <div className="flex items-center gap-2 text-xs opacity-50">
-          <span className="h-px flex-1 bg-white/20" />
+        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[var(--color-ink-faint)]">
+          <span className="h-px flex-1 bg-[var(--color-ink)]/15" />
           or start a new game
-          <span className="h-px flex-1 bg-white/20" />
+          <span className="h-px flex-1 bg-[var(--color-ink)]/15" />
         </div>
 
-        <label className="flex flex-col gap-1 text-left text-sm opacity-90">
+        <label className="flex flex-col gap-1.5 text-left text-sm font-semibold text-[var(--color-ink)]">
           Your name
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Player"
             maxLength={24}
-            className="h-11 rounded-md border border-white/20 bg-white/5 px-3 text-base outline-none focus:border-white/60"
+            className="h-11 rounded-full border border-[var(--color-ink)]/15 bg-white px-4 text-base text-[var(--color-ink)] outline-none transition focus:border-[var(--color-accent)]"
             data-testid="name-input"
           />
         </label>
 
-        <button
+        <Button
           onClick={onCreate}
           disabled={busy}
-          className="h-11 rounded-md bg-white/90 px-4 font-semibold text-zinc-900 transition hover:bg-white disabled:opacity-50"
+          variant="primary"
+          size="lg"
+          fullWidth
           data-testid="create-room"
         >
-          {busy ? "Creating..." : "Create game"}
-        </button>
+          {busy ? "Creating…" : "Create game"}
+        </Button>
 
         {error && (
-          <p className="text-sm text-red-300" role="alert">
+          <p className="text-sm font-medium text-[var(--color-accent)]" role="alert">
             {error}
           </p>
         )}

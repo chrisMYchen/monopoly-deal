@@ -39,7 +39,7 @@ function Modal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.08, ease: "linear" }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-inked)]/55 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       data-testid={testId}
@@ -48,14 +48,16 @@ function Modal({
         initial={{ opacity: 0, scale: 0.96, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.14, ease: [0.18, 0.9, 0.3, 1.05] }}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/15 bg-zinc-900 p-4 shadow-2xl"
+        className="surface-paper max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-5"
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{title}</h3>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="font-display text-xl font-semibold text-[var(--color-ink)]">
+            {title}
+          </h3>
           {onCancel && (
             <button
               onClick={onCancel}
-              className="rounded px-2 py-1 text-sm opacity-70 hover:bg-white/10 hover:opacity-100"
+              className="rounded-full px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-bg-tint)] hover:text-[var(--color-ink)]"
               data-testid="dialog-cancel"
             >
               Cancel

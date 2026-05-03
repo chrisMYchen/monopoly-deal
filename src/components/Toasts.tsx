@@ -85,10 +85,10 @@ export function Toasts({ log, selfId }: { log: LogEntry[]; selfId?: string }) {
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.18 }}
             className={[
-              "pointer-events-auto rounded-md border px-3 py-1.5 text-center text-sm shadow-xl backdrop-blur",
+              "pointer-events-auto rounded-full px-4 py-1.5 text-center text-sm font-medium shadow-[0_8px_24px_-8px_rgba(15,42,46,0.4)] backdrop-blur",
               t.isTarget
-                ? "border-cyan-300/60 bg-cyan-500/15 text-cyan-50 shadow-cyan-500/20"
-                : "border-white/20 bg-zinc-900/95",
+                ? "bg-[var(--color-gold)] text-[var(--color-inked)] ring-2 ring-[var(--color-gold-deep)]/60"
+                : "surface-inked",
             ].join(" ")}
           >
             {t.swap ? <SwapToast toast={t} /> : t.message}

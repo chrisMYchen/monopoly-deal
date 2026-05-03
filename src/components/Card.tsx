@@ -74,12 +74,14 @@ export function Card({
 
   const className = [
     SIZE_CLS[size],
-    "relative flex flex-col overflow-hidden rounded-md border border-black/30 bg-white text-zinc-900 shadow-md transition-all duration-150",
+    // Slightly thicker border + warmer shadow so cards lift cleanly off the
+    // parchment background without losing the canon Monopoly Deal look.
+    "relative flex flex-col overflow-hidden rounded-lg border-2 border-[var(--color-ink)]/25 bg-white text-zinc-900 shadow-[0_4px_12px_-4px_rgba(15,42,46,0.25)] transition-all duration-150",
     selected
-      ? "ring-2 ring-yellow-300 ring-offset-2 ring-offset-zinc-900 -translate-y-2 shadow-[0_8px_20px_-6px_rgba(253,224,71,0.45)]"
+      ? "ring-2 ring-[var(--color-gold)] ring-offset-2 ring-offset-[var(--color-felt)] -translate-y-2 shadow-[0_10px_24px_-6px_rgba(224,179,65,0.55)]"
       : "",
     onClick
-      ? "cursor-pointer hover:-translate-y-1 hover:shadow-lg"
+      ? "cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_18px_-6px_rgba(15,42,46,0.32)]"
       : "cursor-default",
   ].join(" ");
 
@@ -215,7 +217,7 @@ function MoneyFace({ value }: { value: 1 | 2 | 3 | 4 | 5 | 10 }) {
   return (
     <div className={`flex h-full w-full flex-col items-center justify-center ${tint}`}>
       <div className="text-[0.55em] font-semibold uppercase tracking-[0.25em] opacity-60">Bank</div>
-      <div className="font-display text-[2.6em] leading-none tracking-tight">${value}M</div>
+      <div className="font-card text-[2.6em] leading-none tracking-tight">${value}M</div>
       <div className="mt-1 text-[0.5em] uppercase tracking-[0.2em] opacity-50">{value} million</div>
     </div>
   );
@@ -244,7 +246,7 @@ function PropertyFace({
         </div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
-        <div className="font-display text-[1.15em] uppercase leading-[1.05] tracking-[0.01em] text-zinc-900">
+        <div className="font-card text-[1.15em] uppercase leading-[1.05] tracking-[0.01em] text-zinc-900">
           {size === "sm" ? abbreviateProperty(card.name) : card.name}
         </div>
         <div className="mt-1.5 flex items-center gap-1 text-[0.55em] font-semibold uppercase tracking-[0.18em] opacity-55">
@@ -286,7 +288,7 @@ function Wild2Face({ sets }: { sets: [SetColor, SetColor] }) {
         <div className={SET_BG[sets[1]]} />
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
-        <div className="font-display text-[1.4em] uppercase leading-none tracking-[0.02em] text-zinc-900">
+        <div className="font-card text-[1.4em] uppercase leading-none tracking-[0.02em] text-zinc-900">
           Wild
         </div>
         <div className="mt-1 text-[0.55em] font-semibold uppercase tracking-[0.15em] opacity-65">
@@ -316,7 +318,7 @@ function Wild10Face() {
         <div className="bg-[var(--color-set-utility)]" />
       </div>
       <div className="flex flex-1 flex-col items-center justify-center text-center">
-        <div className="font-display text-[1.4em] uppercase leading-none tracking-[0.02em] text-zinc-900">
+        <div className="font-card text-[1.4em] uppercase leading-none tracking-[0.02em] text-zinc-900">
           Wild
         </div>
         <div className="mt-1 text-[0.55em] font-semibold uppercase tracking-[0.18em] opacity-65">
@@ -362,7 +364,7 @@ function ActionFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
 
       {/* white banner with the action title */}
       <div className="bg-white px-1 py-1 text-center">
-        <div className="font-display text-[1.1em] uppercase leading-[1.05] tracking-[0.02em] text-zinc-900">
+        <div className="font-card text-[1.1em] uppercase leading-[1.05] tracking-[0.02em] text-zinc-900">
           {label}
         </div>
       </div>
@@ -417,7 +419,7 @@ function RentFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
       {/* illustration + title — fills the middle band */}
       <div className="flex flex-1 flex-col items-center justify-center gap-1 px-2 py-1">
         <Art className="h-full w-full max-h-[58%] text-[var(--color-action-rent)]" />
-        <div className="font-display text-[1.1em] uppercase leading-[1.05] tracking-[0.02em] text-zinc-900">
+        <div className="font-card text-[1.1em] uppercase leading-[1.05] tracking-[0.02em] text-zinc-900">
           {isWild ? "★ Rent" : "Rent"}
         </div>
       </div>
@@ -449,10 +451,13 @@ export function CardBack({ size = "md", count }: { size?: CardSize; count?: numb
     <div
       className={[
         SIZE_CLS[size],
-        "relative flex flex-col items-center justify-center overflow-hidden rounded-md border border-red-950 bg-gradient-to-br from-red-600 to-red-800 text-white shadow-md",
+        // Canon red gradient with a gold inner-border seal so the deck reads
+        // as a "premium pile" against the parchment table.
+        "relative flex flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-[#7a1d1d] bg-gradient-to-br from-[var(--color-set-red)] to-[#9a2222] text-white shadow-[0_4px_14px_-4px_rgba(15,42,46,0.4)]",
       ].join(" ")}
       aria-label={`Deck of ${count ?? "?"} cards`}
     >
+      {/* Diagonal stripe pattern */}
       <div
         className="pointer-events-none absolute inset-0 opacity-20"
         style={{
@@ -460,16 +465,21 @@ export function CardBack({ size = "md", count }: { size?: CardSize; count?: numb
             "repeating-linear-gradient(45deg, rgba(255,255,255,0.18) 0 2px, transparent 2px 8px)",
         }}
       />
+      {/* Gold inner border seal */}
+      <div
+        className="pointer-events-none absolute inset-1.5 rounded-md border border-[var(--color-gold)]/70"
+        aria-hidden
+      />
       <div className="relative z-10 flex flex-col items-center px-1 text-center">
-        <div className="font-display text-[1.55em] uppercase leading-none tracking-tight drop-shadow">
+        <div className="font-card text-[1.55em] uppercase leading-none tracking-tight drop-shadow">
           Monopoly
         </div>
-        <div className="mt-0.5 font-display text-[1.1em] uppercase leading-none tracking-[0.25em] opacity-95">
+        <div className="mt-0.5 font-card text-[1.1em] uppercase leading-none tracking-[0.25em] text-[var(--color-gold)]/95">
           Deal
         </div>
       </div>
       {typeof count === "number" && (
-        <div className="relative z-10 mt-2 rounded-full bg-white/15 px-2 py-[1px] font-mono text-[0.7em]">
+        <div className="relative z-10 mt-2 rounded-full bg-[var(--color-inked)]/45 px-2 py-[1px] font-mono text-[0.7em] ring-1 ring-[var(--color-gold)]/40">
           {count}
         </div>
       )}

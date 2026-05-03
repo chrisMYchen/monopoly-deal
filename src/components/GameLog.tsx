@@ -29,9 +29,7 @@ export function GameLog({ log }: { log: LogEntry[] }) {
   return (
     <div
       className={[
-        "fixed z-20 flex flex-col rounded-md border border-white/15 bg-zinc-900/85 text-xs shadow-xl backdrop-blur",
-        // Mobile: compact, top-right corner, narrow when collapsed.
-        // Desktop: wider, max 60vh, doesn't compete with the banner.
+        "surface-paper fixed z-20 flex flex-col overflow-hidden rounded-2xl text-xs",
         "right-2 top-2 max-h-[60vh]",
         open ? "w-[88vw] max-w-sm sm:w-72" : "w-auto sm:w-72",
       ].join(" ")}
@@ -39,26 +37,26 @@ export function GameLog({ log }: { log: LogEntry[] }) {
     >
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-white/5"
+        className="flex items-center justify-between gap-2 px-3 py-1.5 transition hover:bg-[var(--color-bg-tint)]"
         aria-expanded={open}
         aria-label={open ? "Collapse game log" : "Expand game log"}
       >
-        <span className="font-semibold uppercase tracking-widest opacity-70">
+        <span className="font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
           Log {log.length > 0 && `· ${log.length}`}
         </span>
-        <span className="opacity-50">{open ? "▾" : "◂"}</span>
+        <span className="text-[var(--color-ink-faint)]">{open ? "▾" : "◂"}</span>
       </button>
       {open ? (
         <div
           ref={scrollerRef}
-          className="overflow-y-auto px-2 pb-2"
+          className="overflow-y-auto px-3 pb-2"
           aria-live="polite"
         >
           <ol className="flex flex-col gap-0.5">
             {trimmed.map((entry, i) => (
               <li
                 key={`${entry.at}-${i}`}
-                className="rounded border-l-2 border-white/10 pl-2 leading-snug opacity-80"
+                className="border-l-2 border-[var(--color-ink)]/12 pl-2 leading-snug text-[var(--color-ink-soft)]"
               >
                 {entry.swap ? <SwapEntry entry={entry} /> : entry.message}
               </li>
@@ -69,7 +67,7 @@ export function GameLog({ log }: { log: LogEntry[] }) {
       {/* Latest entry visible at-a-glance ONLY on desktop when collapsed —
           mobile defers to a small badge to keep the viewport breathing. */}
       {!open && lastEntry && (
-        <div className="hidden border-t border-white/10 px-2 py-1.5 leading-snug opacity-80 sm:block">
+        <div className="hidden border-t border-[var(--color-ink)]/10 px-3 py-1.5 leading-snug text-[var(--color-ink-soft)] sm:block">
           {lastEntry.swap ? <SwapEntry entry={lastEntry} /> : lastEntry.message}
         </div>
       )}
