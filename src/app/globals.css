@@ -78,3 +78,27 @@ body {
 .rr-pulse {
   animation: rr-pulse-glow 2.4s ease-in-out infinite;
 }
+
+/* Peripheral red glow when the on-clock player is the viewer and their timer
+ * is in critical territory. Pure decoration — set pointer-events:none on the
+ * container so it never interferes with clicks. Faster cadence than the
+ * "your turn" pulse so the urgency reads instantly. */
+@keyframes rr-edge-pulse-glow {
+  0%, 100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.rr-edge-pulse {
+  animation: rr-edge-pulse-glow 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rr-pulse,
+  .rr-edge-pulse {
+    animation: none;
+  }
+}
