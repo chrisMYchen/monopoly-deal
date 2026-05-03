@@ -6,6 +6,7 @@
 import { produce } from "immer";
 
 import { applyAction, RuleError, initialLobby } from "../../src/engine/reduce";
+import { autoActionFor, onClockPlayerId } from "../../src/engine/autoAction";
 import { projectStateForPlayer } from "../../src/engine/project";
 import type { GameState, PlayerId } from "../../src/engine/state";
 import type { ClientToServer, ServerToClient } from "./protocol";
@@ -24,6 +25,10 @@ class RoomState {
   sockets = new Map<string, any>(); // ServerWebSocket
   hostSessionId: string | null = null;
   code: string;
+  // Mirrors the Cloudflare DO alarm state for parity in local QA. Uses a
+  // setTimeout instead of the DO Alarms API.
+  currentDeadlineMs: number | null = null;
+  alarmTimer: ReturnType<typeof setTimeout> | null = null;
   constructor(code: string) {
     this.code = code;
   }
@@ -211,6 +216,7 @@ const server = Bun.serve({
               rngSeed: msg.rngSeed ?? (Date.now() & 0x7fffffff),
               players,
             });
+            armOrClearAlarm(room);
             broadcast(room);
             return;
           }
@@ -222,12 +228,19 @@ const server = Bun.serve({
             // re-send the latest state (so the reconnected client gets a
             // fresh snapshot) and skip applying.
             if (msg.clientActionId && session.recentActionIds.includes(msg.clientActionId)) {
-              const projected = projectStateForPlayer(room.game, session.playerId);
+              const projected = projectStateForPlayer(
+                room.game,
+                session.playerId,
+                room.currentDeadlineMs ?? undefined,
+              );
               send(ws, { type: "state", state: projected });
               return;
             }
             if ("playerId" in action && action.playerId !== session.playerId) {
               return send(ws, { type: "error", message: "playerId mismatch" });
+            }
+            if (action.type === "UPDATE_SETTINGS" && data.sessionId !== room.hostSessionId) {
+              return send(ws, { type: "error", message: "only host can change settings" });
             }
             room.game = applyAction(room.game, action);
             if (msg.clientActionId) {
@@ -236,6 +249,7 @@ const server = Bun.serve({
                 session.recentActionIds.shift();
               }
             }
+            armOrClearAlarm(room);
             broadcast(room);
             return;
           }
@@ -302,12 +316,58 @@ function handleLeave(room: RoomState, sessionId: string): void {
 }
 
 function broadcast(room: RoomState): void {
+  const deadline = room.currentDeadlineMs ?? undefined;
   for (const [sessionId, socket] of room.sockets) {
     const session = room.sessions.get(sessionId);
     if (!session?.playerId) continue;
-    const projected = projectStateForPlayer(room.game, session.playerId);
+    const projected = projectStateForPlayer(room.game, session.playerId, deadline);
     send(socket, { type: "state", state: projected });
   }
+}
+
+// Mirror of the Cloudflare DO alarm logic, but using setTimeout. Idempotent:
+// each call re-arms based on current state; clears the timer when the game is
+// not in progress or the timer is off.
+function armOrClearAlarm(room: RoomState): void {
+  const timerSec = room.game.settings?.turnTimerSeconds;
+  const someoneOnClock = onClockPlayerId(room.game) !== null;
+  if (!someoneOnClock || timerSec == null) {
+    if (room.alarmTimer) {
+      clearTimeout(room.alarmTimer);
+      room.alarmTimer = null;
+    }
+    room.currentDeadlineMs = null;
+    return;
+  }
+  const next = Date.now() + timerSec * 1000;
+  room.currentDeadlineMs = next;
+  if (room.alarmTimer) clearTimeout(room.alarmTimer);
+  room.alarmTimer = setTimeout(() => fireAlarm(room), timerSec * 1000);
+}
+
+function fireAlarm(room: RoomState): void {
+  if (room.currentDeadlineMs != null && Date.now() < room.currentDeadlineMs - 250) {
+    // Re-arm to the latest deadline.
+    if (room.alarmTimer) clearTimeout(room.alarmTimer);
+    room.alarmTimer = setTimeout(() => fireAlarm(room), room.currentDeadlineMs - Date.now());
+    return;
+  }
+  const auto = autoActionFor(room.game);
+  if (auto) {
+    try {
+      room.game = applyAction(room.game, auto);
+      room.game = produce(room.game, (draft) => {
+        draft.log.push({
+          at: draft.currentTurn,
+          message: `Auto-action fired (timer expired).`,
+        });
+      });
+    } catch {
+      // Ignore — re-arm and try again next cycle.
+    }
+  }
+  armOrClearAlarm(room);
+  broadcast(room);
 }
 
 function send(socket: any, msg: ServerToClient): void {

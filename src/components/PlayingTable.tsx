@@ -681,6 +681,7 @@ function TopBanner({ state }: { state: ProjectedGameState }) {
   const cur = state.players[state.currentTurn]!;
   const pendingMsg = describePending(state);
   const isMyTurn = state.selfId === cur.id;
+  const onClockId = onClockPlayerIdFromProjected(state);
   return (
     <div
       className={[
@@ -694,6 +695,7 @@ function TopBanner({ state }: { state: ProjectedGameState }) {
         <TurnTimerPill
           deadlineMs={state.turnDeadlineMs}
           totalSeconds={state.settings?.turnTimerSeconds ?? null}
+          selfOnClock={onClockId != null && onClockId === state.selfId}
         />
       </div>
       <div className="text-xs opacity-70">
@@ -702,6 +704,26 @@ function TopBanner({ state }: { state: ProjectedGameState }) {
       </div>
     </div>
   );
+}
+
+// Mirrors `onClockPlayerId` from the engine but operates on the projected
+// state shape. Kept inline so the client doesn't drag in any engine modules.
+function onClockPlayerIdFromProjected(state: ProjectedGameState): string | null {
+  if (state.phase !== "playing") return null;
+  const p = state.pending;
+  if (p == null) return state.players[state.currentTurn]?.id ?? null;
+  switch (p.kind) {
+    case "awaitDiscardToLimit":
+      return p.playerId;
+    case "awaitJustSayNo":
+      return p.responderIsActor
+        ? p.declaration.sourceId
+        : (p.pendingDefenders[0] ?? null);
+    case "awaitPayment":
+      return p.payerId;
+    case "awaitWildAssignment":
+      return p.ownerId;
+  }
 }
 
 function describePending(state: ProjectedGameState): string {
