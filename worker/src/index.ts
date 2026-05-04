@@ -72,21 +72,30 @@ type SessionInfo = {
   recentActionIds: string[];
 };
 
+// Attached to each hibernation-managed WebSocket so we can recover sessionId
+// after the DO wakes from eviction with no in-memory sockets map.
+type SocketAttachment = { sessionId: string };
+
 const RECENT_ACTIONS_PER_SESSION = 64;
 
-// Storage keys for game state persistence — survives DO eviction so a brief
-// idle period can't wipe the room out from under players.
+// How long an abandoned (all-disconnected) room is kept alive before its
+// state is wiped. Prevents orphaned rooms from accumulating DO duration via
+// indefinitely-firing turn-timer alarms.
+const ABANDON_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+// Storage keys.
 const STORAGE_KEY_GAME = "game";
 const STORAGE_KEY_HOST = "host";
 const STORAGE_KEY_CODE = "code";
+// Marks that the currently-stored alarm is the abandon-cleanup alarm, not a
+// turn-timer alarm, so we can distinguish them after a DO eviction+revival.
+const STORAGE_KEY_CLEANUP_ALARM = "cleanup_alarm";
 
 export class Room {
   private state: DurableObjectState;
   private game: GameState = initialLobby();
   // sessionId -> session metadata (playerId etc.)
   private sessions = new Map<string, SessionInfo>();
-  // Live sockets indexed by sessionId so we can deliver state and detect dupes.
-  private sockets = new Map<string, WebSocket>();
   private hostSessionId: string | null = null;
   private roomCode: string | null = null;
   // Coalesce frequent storage writes: at most one write in flight at a time,
@@ -94,8 +103,8 @@ export class Room {
   private pendingPersist = false;
   private persisting = false;
   // Server epoch ms by which the on-clock player must act, or null when no
-  // clock is running. Mirrored into storage.setAlarm() so the DO wakes from
-  // hibernation right when the deadline expires.
+  // turn-timer alarm is running. null means any currently-set alarm is the
+  // abandon-cleanup alarm, not a turn timer.
   private currentDeadlineMs: number | null = null;
 
   constructor(state: DurableObjectState, _env: Env) {
@@ -104,11 +113,12 @@ export class Room {
     // lose the in-progress game. blockConcurrencyWhile keeps requests waiting
     // until restoration completes.
     this.state.blockConcurrencyWhile(async () => {
-      const [game, host, code, alarm] = await Promise.all([
+      const [game, host, code, alarm, isCleanup] = await Promise.all([
         this.state.storage.get<GameState>(STORAGE_KEY_GAME),
         this.state.storage.get<string>(STORAGE_KEY_HOST),
         this.state.storage.get<string>(STORAGE_KEY_CODE),
         this.state.storage.getAlarm(),
+        this.state.storage.get<boolean>(STORAGE_KEY_CLEANUP_ALARM),
       ]);
       if (game) {
         // Old games persisted before the settings field existed — backfill so
@@ -120,7 +130,9 @@ export class Room {
       }
       if (host) this.hostSessionId = host;
       if (code) this.roomCode = code;
-      if (alarm) this.currentDeadlineMs = alarm;
+      // Only restore the deadline for turn-timer alarms; cleanup alarms leave
+      // currentDeadlineMs as null so alarm() can distinguish them.
+      if (alarm && !isCleanup) this.currentDeadlineMs = alarm;
     });
   }
 
@@ -155,89 +167,132 @@ export class Room {
   }
 
   private handleSocket(socket: WebSocket): void {
-    socket.accept();
-    let mySessionId: string | null = null;
+    // Use the Hibernating WebSocket API so the DO can be evicted between
+    // messages rather than staying alive for the duration of every game.
+    // Cloudflare dispatches incoming messages to webSocketMessage() below.
+    this.state.acceptWebSocket(socket);
+  }
 
-    socket.addEventListener("message", (event) => {
-      let msg: ClientToServer;
-      try {
-        msg = JSON.parse(typeof event.data === "string" ? event.data : "");
-      } catch {
-        this.sendError(socket, "invalid JSON");
-        return;
+  // Cloudflare calls this for each message on a hibernation-managed socket.
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    let msg: ClientToServer;
+    try {
+      msg = JSON.parse(typeof message === "string" ? message : "");
+    } catch {
+      this.sendError(ws, "invalid JSON");
+      return;
+    }
+
+    const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+    const mySessionId = attachment?.sessionId ?? null;
+
+    try {
+      switch (msg.type) {
+        case "join":
+          await this.handleJoin(ws, msg);
+          break;
+        case "leave":
+          if (mySessionId) await this.handleLeave(ws, mySessionId);
+          break;
+        case "start":
+          if (!mySessionId) return this.sendError(ws, "not joined");
+          this.handleStart(mySessionId, msg.rngSeed);
+          break;
+        case "action":
+          if (!mySessionId) return this.sendError(ws, "not joined");
+          this.handleAction(mySessionId, msg.action, msg.clientActionId);
+          break;
+        case "ping":
+          // Heartbeat reply — no work, just echo `t`.
+          this.send(ws, { type: "pong", t: msg.t });
+          break;
+        default:
+          this.sendError(ws, "unknown message type");
       }
+    } catch (err) {
+      const message = err instanceof RuleError ? err.message : "internal error";
+      this.sendError(ws, message);
+    }
+  }
 
-      try {
-        switch (msg.type) {
-          case "join":
-            mySessionId = msg.sessionId;
-            this.handleJoin(socket, msg);
-            break;
-          case "leave":
-            if (mySessionId) this.handleLeave(mySessionId);
-            break;
-          case "start":
-            if (!mySessionId) return this.sendError(socket, "not joined");
-            this.handleStart(mySessionId, msg.rngSeed);
-            break;
-          case "action":
-            if (!mySessionId) return this.sendError(socket, "not joined");
-            this.handleAction(mySessionId, msg.action, msg.clientActionId);
-            break;
-          case "ping":
-            // Heartbeat reply — no work, just echo `t`.
-            this.send(socket, { type: "pong", t: msg.t });
-            break;
-          default:
-            this.sendError(socket, "unknown message type");
+  // Cloudflare calls this when a hibernation-managed socket closes.
+  async webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
+    const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+    const mySessionId = attachment?.sessionId;
+    if (!mySessionId) return;
+
+    // Fast-reconnect guard: if another socket for this session already took
+    // over (analogous to the old `this.sockets.get(id) === socket` check),
+    // this close event is stale — skip cleanup.
+    const current = this.getSocketForSession(mySessionId);
+    if (current && current !== ws) return;
+
+    const session = this.sessions.get(mySessionId);
+    const playerId = session?.playerId;
+    if (playerId) {
+      this.game = produce(this.game, (draft) => {
+        const player = draft.players.find((p) => p.id === playerId);
+        if (player) player.connected = false;
+      });
+      this.persistGame();
+
+      // When the room empties, suspend the turn timer and start an abandon
+      // countdown. This stops the DO from waking every 60 s for an empty room.
+      if (this.state.getWebSockets().length === 0) {
+        this.currentDeadlineMs = null;
+        try {
+          await this.state.storage.deleteAlarm();
+          await this.state.storage.put(STORAGE_KEY_CLEANUP_ALARM, true);
+          await this.state.storage.setAlarm(Date.now() + ABANDON_TTL_MS);
+        } catch {
+          // ignore
         }
-      } catch (err) {
-        const message = err instanceof RuleError ? err.message : "internal error";
-        this.sendError(socket, message);
       }
-    });
 
-    socket.addEventListener("close", () => {
-      if (!mySessionId) return;
-      // Only clear the live socket if it's still the one we have for this
-      // session — a fast reconnect might have already replaced it.
-      if (this.sockets.get(mySessionId) === socket) {
-        this.sockets.delete(mySessionId);
-      }
-      // Mark player as disconnected; keep their slot for now (reconnect grace).
-      const session = this.sessions.get(mySessionId);
-      const playerId = session?.playerId;
-      if (playerId) {
-        this.game = produce(this.game, (draft) => {
-          const player = draft.players.find((p) => p.id === playerId);
-          if (player) player.connected = false;
-        });
-        this.persistGame();
-        this.broadcastState();
-      }
-    });
+      this.broadcastState();
+    }
+  }
+
+  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
+    try {
+      ws.close(1011, "internal error");
+    } catch {
+      // ignore
+    }
   }
 
   // --- message handlers ----------------------------------------------------
 
-  private handleJoin(socket: WebSocket, msg: Extract<ClientToServer, { type: "join" }>): void {
-    if (this.sockets.has(msg.sessionId)) {
-      // Same session re-attaches: replace the old socket with the new one.
+  private async handleJoin(ws: WebSocket, msg: Extract<ClientToServer, { type: "join" }>): Promise<void> {
+    const oldSocket = this.getSocketForSession(msg.sessionId);
+    if (oldSocket && oldSocket !== ws) {
+      // Same session re-attaches: close the old socket.
       try {
-        this.sockets.get(msg.sessionId)?.close(1000, "replaced");
+        oldSocket.close(1000, "replaced");
       } catch {
         // ignore
       }
     }
-    this.sockets.set(msg.sessionId, socket);
+    // Stamp the sessionId on this socket so we can recover it after hibernation.
+    ws.serializeAttachment({ sessionId: msg.sessionId } satisfies SocketAttachment);
+
+    // Cancel any pending abandon-cleanup alarm — a player has reconnected.
+    if (this.currentDeadlineMs == null) {
+      try {
+        await this.state.storage.deleteAlarm();
+        await this.state.storage.delete(STORAGE_KEY_CLEANUP_ALARM);
+      } catch {
+        // ignore
+      }
+    }
 
     let session = this.sessions.get(msg.sessionId);
     // Lazy-register the session if the game already knows about a player with
     // this id — covers DO restart / post-recovery scenarios where the in-memory
     // sessions Map was cleared but the game state persisted.
     if (!session) {
-      const existing = this.game.players.find((p) => p.id === msg.sessionId);
-      if (existing) {
+      const existingPlayer = this.game.players.find((p) => p.id === msg.sessionId);
+      if (existingPlayer) {
         session = { sessionId: msg.sessionId, playerId: msg.sessionId, recentActionIds: [] };
         this.sessions.set(msg.sessionId, session);
         if (!this.hostSessionId) {
@@ -254,10 +309,10 @@ export class Room {
       // New session: create a player slot if game is still in lobby; otherwise
       // we only honor reconnects to existing sessions.
       if (this.game.phase !== "lobby") {
-        return this.sendError(socket, "game already in progress");
+        return this.sendError(ws, "game already in progress");
       }
       if (this.game.players.length >= 5) {
-        return this.sendError(socket, "room full");
+        return this.sendError(ws, "room full");
       }
       const playerId = msg.sessionId; // session id doubles as player id
       const name = msg.name.slice(0, 24) || "Player";
@@ -278,18 +333,19 @@ export class Room {
       session = { sessionId: msg.sessionId, playerId, recentActionIds: [] };
       this.sessions.set(msg.sessionId, session);
     } else {
-      // Reconnect: mark connected.
+      // Reconnect: mark connected and resume the turn timer if game is active.
       const sessId = session.playerId;
       this.game = produce(this.game, (draft) => {
         const player = draft.players.find((p) => p.id === sessId);
         if (player) player.connected = true;
       });
+      void this.armOrClearAlarm();
     }
 
     this.persistGame();
 
     const isHost = this.hostSessionId === msg.sessionId;
-    this.send(socket, {
+    this.send(ws, {
       type: "joined",
       playerId: session.playerId!,
       isHost,
@@ -298,7 +354,7 @@ export class Room {
     this.broadcastState();
   }
 
-  private handleLeave(sessionId: string): void {
+  private async handleLeave(ws: WebSocket, sessionId: string): Promise<void> {
     if (this.game.phase === "lobby") {
       // Drop the player from the lobby.
       const session = this.sessions.get(sessionId);
@@ -314,10 +370,8 @@ export class Room {
         }
       }
       this.sessions.delete(sessionId);
-      this.sockets.delete(sessionId);
     } else {
-      // In-game: just disconnect. Player slot remains.
-      this.sockets.delete(sessionId);
+      // In-game: just disconnect. Player slot remains for reconnect.
       const session = this.sessions.get(sessionId);
       const playerId = session?.playerId;
       if (playerId) {
@@ -330,6 +384,11 @@ export class Room {
     this.persistGame();
     void this.armOrClearAlarm();
     this.broadcastState();
+    try {
+      ws.close(1000, "left");
+    } catch {
+      // ignore
+    }
   }
 
   private handleStart(sessionId: string, rngSeed?: number): void {
@@ -365,7 +424,7 @@ export class Room {
     // just re-broadcast the latest state (so the reconnected client gets a
     // fresh snapshot) and do nothing else.
     if (clientActionId && session.recentActionIds.includes(clientActionId)) {
-      const sock = this.sockets.get(sessionId);
+      const sock = this.getSocketForSession(sessionId);
       if (sock) {
         const projected = projectStateForPlayer(this.game, session.playerId);
         this.send(sock, { type: "state", state: projected });
@@ -399,6 +458,12 @@ export class Room {
 
   // --- helpers -------------------------------------------------------------
 
+  private getSocketForSession(sessionId: string): WebSocket | undefined {
+    return this.state.getWebSockets().find(
+      (ws) => (ws.deserializeAttachment() as SocketAttachment | null)?.sessionId === sessionId,
+    );
+  }
+
   private send(socket: WebSocket, msg: ServerToClient): void {
     try {
       socket.send(JSON.stringify(msg));
@@ -413,17 +478,20 @@ export class Room {
 
   private broadcastState(): void {
     const deadline = this.currentDeadlineMs ?? undefined;
-    for (const [sessionId, socket] of this.sockets) {
+    for (const ws of this.state.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+      const sessionId = attachment?.sessionId;
+      if (!sessionId) continue;
       const session = this.sessions.get(sessionId);
       if (!session?.playerId) continue;
       const projected = projectStateForPlayer(this.game, session.playerId, deadline);
-      this.send(socket, { type: "state", state: projected });
+      this.send(ws, { type: "state", state: projected });
     }
   }
 
   // Sets or clears the per-decision turn timer. Called after every state-
   // changing handler. Idempotent: skips storage churn when the deadline
-  // hasn't materially changed (within 250ms).
+  // hasn't materially changed (within 1 second).
   private async armOrClearAlarm(): Promise<void> {
     const timerSec = this.game.settings?.turnTimerSeconds;
     const someoneOnClock = onClockPlayerId(this.game) !== null;
@@ -431,6 +499,7 @@ export class Room {
       if (this.currentDeadlineMs != null) {
         this.currentDeadlineMs = null;
         try {
+          await this.state.storage.delete(STORAGE_KEY_CLEANUP_ALARM);
           await this.state.storage.deleteAlarm();
         } catch {
           // ignore
@@ -439,8 +508,13 @@ export class Room {
       return;
     }
     const next = Date.now() + timerSec * 1000;
+    // Skip storage write if the deadline hasn't meaningfully shifted.
+    if (this.currentDeadlineMs != null && Math.abs(next - this.currentDeadlineMs) < 1000) {
+      return;
+    }
     this.currentDeadlineMs = next;
     try {
+      await this.state.storage.delete(STORAGE_KEY_CLEANUP_ALARM);
       await this.state.storage.setAlarm(next);
     } catch {
       // ignore — worst case the next handler re-sets it
@@ -448,12 +522,20 @@ export class Room {
   }
 
   // Cloudflare DO Alarms callback. Fires when the deadline we set arrives.
-  // We auto-resolve whatever decision the on-clock player owes, broadcast,
-  // and re-arm for the next on-clock player.
   async alarm(): Promise<void> {
+    // currentDeadlineMs == null means this is the abandon-cleanup alarm (set
+    // in webSocketClose when the room went empty). Wipe state so the DO stops
+    // waking up for an orphaned room.
+    if (this.currentDeadlineMs == null) {
+      if (this.state.getWebSockets().length === 0) {
+        await this.state.storage.deleteAll();
+      }
+      return;
+    }
+
     // If state advanced after the alarm was scheduled (someone acted right
     // before the alarm fired), re-arm to the current deadline and bail.
-    if (this.currentDeadlineMs != null && Date.now() < this.currentDeadlineMs - 250) {
+    if (Date.now() < this.currentDeadlineMs - 250) {
       try {
         await this.state.storage.setAlarm(this.currentDeadlineMs);
       } catch {
