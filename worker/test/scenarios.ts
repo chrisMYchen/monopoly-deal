@@ -355,6 +355,64 @@ async function run(): Promise<void> {
   });
 
   // -----------------------------------------------------------------------
+  // Double The Rent — UI-shipped this pass; covers the on-the-wire path that
+  // a rent action with `doubleRentCardIds` ends with the multiplied demand
+  // applied and the play cost charged. Engine has unit-test coverage for the
+  // mechanic itself; this scenario proves the worker round-trips it.
+  // -----------------------------------------------------------------------
+  await scenario("double the rent doubles a 2-color rent and costs 2 plays", async () => {
+    const code = await createRoom();
+    const [alice, bob] = await joinAll(code, [
+      { sessionId: ALICE, name: "Alice" },
+      { sessionId: BOB, name: "Bob" },
+    ]);
+    const greens = allCardsOfKind((c) => c.kind === "property" && c.set === "green").slice(0, 2); // base rent $4M
+    const rentCard = findCard(
+      (c) =>
+        c.kind === "action" &&
+        c.action === "rent" &&
+        !c.rentSingleTarget &&
+        c.rentSets?.includes("green") === true,
+    );
+    const doubleCard = findCard((c) => c.kind === "action" && c.action === "doubleRent");
+    const m10 = findCard((c) => c.kind === "money" && c.value === 10);
+    await injectState(code, buildState({
+      players: [
+        {
+          id: ALICE,
+          name: "Alice",
+          hand: [rentCard, doubleCard],
+          propertySets: [{ color: "green", cardIds: greens }],
+        },
+        { id: BOB, name: "Bob", bank: [m10] },
+      ],
+    }));
+    alice!.send({
+      type: "action",
+      action: {
+        type: "PLAY_RENT",
+        playerId: ALICE,
+        cardId: rentCard,
+        color: "green",
+        doubleRentCardIds: [doubleCard],
+      },
+    });
+    await waitForState(code, (s) => s.pending?.kind === "awaitJustSayNo");
+    bob!.send({ type: "action", action: { type: "RESPOND_JSN", playerId: BOB, play: false } });
+    await waitForState(code, (s) => s.pending?.kind === "awaitPayment" && s.pending.amountOwed === 8);
+    bob!.send({ type: "action", action: { type: "PAY", playerId: BOB, cardIds: [m10] } });
+    const final = await waitForState(code, (s) => s.pending === null);
+    const aliceP = final.players.find((p) => p.id === ALICE)!;
+    if (!aliceP.bank.includes(m10)) throw new Error("Alice missing the $10M Bob paid");
+    // Rent + 1 double = 2 plays consumed.
+    if (final.playsRemaining !== 1) throw new Error(`expected 1 play remaining, got ${final.playsRemaining}`);
+    // Double The Rent card lives in the discard pile, not the bank.
+    if (!final.discardPile.includes(doubleCard)) throw new Error("Double card not in discard");
+    if (aliceP.bank.includes(doubleCard)) throw new Error("Double card mistakenly banked");
+    alice!.close(); bob!.close();
+  });
+
+  // -----------------------------------------------------------------------
   // House
   // -----------------------------------------------------------------------
   await scenario("house adds $3M to rent on standard color set", async () => {
