@@ -237,7 +237,8 @@ function PlayingTableInner({
         if (c.action === "rent") {
           const sets = (c.rentSets ?? []) as SetColor[];
           const owned = sets.filter((color) => self.propertySets.some((g) => g.color === color && g.cardIds.length > 0));
-          setDraft({ kind: "rent-pick-color", cardId: card, allowedColors: owned.length > 0 ? owned : sets, isWild: !!c.rentSingleTarget });
+          if (owned.length === 0) return; // no matching properties — engine would reject
+          setDraft({ kind: "rent-pick-color", cardId: card, allowedColors: owned, isWild: !!c.rentSingleTarget });
           return;
         }
       }
@@ -272,10 +273,11 @@ function PlayingTableInner({
           if (c.rentSingleTarget) {
             const sets = (c.rentSets ?? []) as SetColor[];
             const owned = sets.filter((color) => self.propertySets.some((g) => g.color === color && g.cardIds.length > 0));
+            if (owned.length === 0) return; // no matching properties — engine would reject
             if (owned.length === 1) {
               send({ type: "PLAY_RENT", playerId: selfId, cardId: card, color: owned[0]!, singleTargetId: overOpponentId });
             } else {
-              setDraft({ kind: "rent-pick-color", cardId: card, allowedColors: owned.length > 0 ? owned : sets, isWild: true });
+              setDraft({ kind: "rent-pick-color", cardId: card, allowedColors: owned, isWild: true });
             }
           }
           return;
@@ -683,7 +685,12 @@ function PlayingTableInner({
       const c = cardById(cid);
       return c.kind === "action" && c.action === "doubleRent";
     });
-    const baseGroup = self.propertySets.find((g) => g.color === dr.color);
+    const baseGroup = self.propertySets
+      .filter((g) => g.color === dr.color)
+      .reduce<typeof self.propertySets[number] | undefined>(
+        (best, g) => !best || g.cardIds.length > best.cardIds.length ? g : best,
+        undefined,
+      );
     const baseRent = baseGroup ? rentForUI(baseGroup) : 0;
     const card = cardById(dr.cardId);
     const isWild = card.kind === "action" && card.action === "rent" && !!card.rentSingleTarget;

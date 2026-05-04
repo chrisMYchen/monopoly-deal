@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "motion/react";
 import { useDraggable } from "@dnd-kit/core";
 
 import { Card } from "./Card";
@@ -44,8 +45,9 @@ export function HandView({
           Sort: {sort === "asis" ? "draw order" : "by kind"}
         </button>
       </div>
-      <div
-        className="flex flex-wrap items-end justify-center gap-2 px-2 py-2"
+      <motion.div
+        layout
+        className="flex flex-nowrap items-end justify-start gap-2 overflow-x-auto px-2 py-2"
         role="region"
         aria-label="Your hand"
       >
@@ -58,7 +60,7 @@ export function HandView({
           />
         ))}
         {hand.length === 0 && <div className="text-xs opacity-50">hand is empty</div>}
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -84,7 +86,7 @@ function DraggableCard({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className={isDragging ? "opacity-30" : ""}
+      className={`shrink-0 ${isDragging ? "opacity-30" : ""}`}
     >
       <Card cardId={cardId} size="md" selected={selected} onClick={onSelect} />
     </div>

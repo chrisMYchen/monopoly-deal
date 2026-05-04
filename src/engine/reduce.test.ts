@@ -533,6 +533,81 @@ describe("PLAY_HOUSE / PLAY_HOTEL", () => {
       applyAction(s, { type: "PLAY_HOTEL", playerId: "p1", cardId: built.hotel, targetColor: "red" }),
     ).toThrow();
   });
+
+  // freeActionCard correctness: house/hotel cards are "floating" (not tracked
+  // in any collection) while attached. When a set breaks, freeActionCard
+  // finds the floating card by exclusion from inPlay and returns it to bank.
+
+  it("house detaches to bank when payment transfers a property out of the complete set", () => {
+    const built = buildCompleteRedSet();
+    let s = applyAction(built.state, { type: "END_TURN", playerId: "p1" });
+    for (const pid of ["p2", "p3"] as const) {
+      s = applyAction(s, { type: "DRAW_TURN_START", playerId: pid });
+      s = applyAction(s, { type: "END_TURN", playerId: pid });
+    }
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_HOUSE", playerId: "p1", cardId: built.house, targetColor: "red" });
+    s = applyAction(s, { type: "END_TURN", playerId: "p1" });
+
+    // p2 plays Debt Collector ($5M). p1 pays with 2 reds ($6M ≥ $5M),
+    // leaving the set at 1/3 (broken) → house floats back to p1's bank.
+    const dcCard = findCard((c) => c.kind === "action" && c.action === "debtCollector");
+    const reds = allCardsOfKind((c) => c.kind === "property" && c.set === "red").slice(0, 2);
+    s = injectHand(s, "p2", [dcCard]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p2" });
+    s = applyAction(s, {
+      type: "PLAY_DEBT_COLLECTOR",
+      playerId: "p2",
+      cardId: dcCard,
+      targetPlayerId: "p1",
+    });
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p1", play: false });
+    s = applyAction(s, { type: "PAY", playerId: "p1", cardIds: [reds[0]!, reds[1]!] });
+
+    const p1After = getPlayer(s, "p1");
+    const redGroup = p1After.propertySets.find((g) => g.color === "red");
+    expect(redGroup?.hasHouse).toBe(false);
+    expect(p1After.bank).toContain(built.house);
+  });
+
+  it("hotel and house both detach to bank (hotel first) when payment breaks the set", () => {
+    const built = buildCompleteRedSet();
+    let s = applyAction(built.state, { type: "END_TURN", playerId: "p1" });
+    for (const pid of ["p2", "p3"] as const) {
+      s = applyAction(s, { type: "DRAW_TURN_START", playerId: pid });
+      s = applyAction(s, { type: "END_TURN", playerId: pid });
+    }
+    // p1 plays house then hotel in the same turn (2 plays each, 3 available)
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_HOUSE", playerId: "p1", cardId: built.house, targetColor: "red" });
+    s = applyAction(s, { type: "PLAY_HOTEL", playerId: "p1", cardId: built.hotel, targetColor: "red" });
+    const redGroupBefore = getPlayer(s, "p1").propertySets.find((g) => g.color === "red")!;
+    expect(redGroupBefore.hasHouse).toBe(true);
+    expect(redGroupBefore.hasHotel).toBe(true);
+    s = applyAction(s, { type: "END_TURN", playerId: "p1" });
+
+    // p2 DC on p1 — p1 pays 2 reds, breaking 3/3 → 1/3.
+    const dcCard = findCard((c) => c.kind === "action" && c.action === "debtCollector");
+    const reds = allCardsOfKind((c) => c.kind === "property" && c.set === "red").slice(0, 2);
+    s = injectHand(s, "p2", [dcCard]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p2" });
+    s = applyAction(s, {
+      type: "PLAY_DEBT_COLLECTOR",
+      playerId: "p2",
+      cardId: dcCard,
+      targetPlayerId: "p1",
+    });
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p1", play: false });
+    s = applyAction(s, { type: "PAY", playerId: "p1", cardIds: [reds[0]!, reds[1]!] });
+
+    const p1After = getPlayer(s, "p1");
+    const redGroup = p1After.propertySets.find((g) => g.color === "red");
+    expect(redGroup?.hasHotel).toBe(false);
+    expect(redGroup?.hasHouse).toBe(false);
+    // Both the played hotel and house card IDs land in p1's bank.
+    expect(p1After.bank).toContain(built.hotel);
+    expect(p1After.bank).toContain(built.house);
+  });
 });
 
 // ---------------------------------------------------------------------------
