@@ -962,8 +962,6 @@ function onClockPlayerIdFromProjected(state: ProjectedGameState): string | null 
         : (p.pendingDefenders[0] ?? null);
     case "awaitPayment":
       return p.payerId;
-    case "awaitWildAssignment":
-      return p.ownerId;
   }
 }
 
@@ -977,7 +975,7 @@ function describePending(state: ProjectedGameState): string {
     }`;
   if (p.kind === "awaitPayment")
     return `${nameOf(state, p.payerId)} owes $${p.amountOwed}M`;
-  return p.kind;
+  return "";
 }
 
 function describeDeclaration(d: any, state: ProjectedGameState): string {

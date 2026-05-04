@@ -85,7 +85,6 @@ function pendingResponse(
     const cardIds = pickAutoDiscard(me.hand, p.mustDiscard);
     return { type: "DISCARD_TO_LIMIT", playerId: selfId, cardIds };
   }
-  // awaitWildAssignment has no engine action; the orchestrator falls back.
   return null;
 }
 
@@ -301,8 +300,6 @@ export function whoActsNow(state: ProjectedGameState): PlayerId | null {
         : (p.pendingDefenders[0] ?? null);
     case "awaitPayment":
       return p.payerId;
-    case "awaitWildAssignment":
-      return p.ownerId;
   }
 }
 
