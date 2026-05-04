@@ -457,6 +457,42 @@ export function AnimationLayer() {
           }
           break;
         }
+        case "debtForgiven": {
+          // Payer (actorId) was bankrupt; source (targetId) just played a card
+          // and got nothing. Without a beat here, ~14% of all rent/bday/debt
+          // resolutions silently fizzle and the rent-demand overlay floats off
+          // with no payoff. Give both sides a clear cue.
+          playSfx("clash", 0.5);
+          if (isSelfActor) haptics.tap(); // bankrupt: light cue, more meh than scolding
+          if (isSelfTarget) haptics.bump(); // source: "your card just burned"
+          if (e.actorId) {
+            const r = rectOfPlayerCenter(e.actorId);
+            if (r) {
+              pushOverlay({
+                ttl: 950,
+                kind: "bigNumber",
+                text: "BANKRUPT",
+                x: r.left + r.width / 2,
+                y: r.top + 8,
+                tone: "neutral",
+              });
+            }
+          }
+          if (e.targetId) {
+            const r = rectOfPlayerCenter(e.targetId);
+            if (r) {
+              pushOverlay({
+                ttl: 950,
+                kind: "bigNumber",
+                text: "$0 — NOTHING TO TAKE",
+                x: r.left + r.width / 2,
+                y: r.top + 24,
+                tone: "bad",
+              });
+            }
+          }
+          break;
+        }
         case "pay": {
           playSfx("pay", isSelfActor || isSelfTarget ? 1 : 0.6);
           if (isSelfActor) haptics.tap();
