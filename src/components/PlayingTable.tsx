@@ -39,6 +39,7 @@ import {
   PaymentDialog,
   PlayerPicker,
   RentColorPicker,
+  RentDoublePicker,
   SpectatorPendingOverlay,
   WildAssignPicker,
 } from "./Dialogs";
@@ -76,6 +77,15 @@ type ActionDraft =
   | { kind: "debt-pick-target"; cardId: CardId }
   | { kind: "rent-pick-color"; cardId: CardId; allowedColors: SetColor[]; isWild: boolean }
   | { kind: "rent-pick-target"; cardId: CardId; color: SetColor }
+  | {
+      // Final step before sending PLAY_RENT — opt-in stack of Double The Rent
+      // cards. Skipped automatically when the player holds none in hand or has
+      // fewer than 2 plays remaining (i.e. no room to pay the +1 play cost).
+      kind: "rent-pick-doubles";
+      cardId: CardId;
+      color: SetColor;
+      singleTargetId?: string; // present iff this rent is from a wild ★ card
+    }
   | { kind: "house-pick"; cardId: CardId; isHotel: boolean };
 
 export function PlayingTable(props: { client: WsClient }) {
@@ -273,6 +283,33 @@ function PlayingTableInner({
     }
   }
 
+  // Routes a rent draft into the optional Double The Rent picker. Skips the
+  // picker when the player has no Double The Rent in hand, or doesn't have
+  // enough plays left to pay even one extra play cost. The current draft's
+  // cardId is taken from `draft` (must be a rent-pick-* variant when called).
+  function proceedToRentDoublesOrSend(color: SetColor, singleTargetId?: string) {
+    if (!draft || (draft.kind !== "rent-pick-color" && draft.kind !== "rent-pick-target")) return;
+    const rentCardId = draft.cardId;
+    const hasDouble = self.hand.some((cid) => {
+      const c = cardById(cid);
+      return c.kind === "action" && c.action === "doubleRent";
+    });
+    const canStack = hasDouble && state.playsRemaining >= 2;
+    if (!canStack) {
+      send({
+        type: "PLAY_RENT",
+        playerId: selfId,
+        cardId: rentCardId,
+        color,
+        singleTargetId,
+      });
+      setDraft(null);
+      setSelectedCardId(null);
+      return;
+    }
+    setDraft({ kind: "rent-pick-doubles", cardId: rentCardId, color, singleTargetId });
+  }
+
   // ----- Pending state branch -----
   // These take precedence over normal play.
 
@@ -308,7 +345,11 @@ function PlayingTableInner({
         return c.kind === "action" && c.action === "justSayNo";
       });
       // Surface what's specifically at stake for each declaration kind.
-      let preview: { kind: "card"; cardId: CardId } | { kind: "amount"; amount: number } | undefined;
+      let preview:
+        | { kind: "card"; cardId: CardId }
+        | { kind: "amount"; amount: number }
+        | { kind: "set"; cardIds: CardId[]; color: SetColor }
+        | undefined;
       if (w.declaration.kind === "slyDeal" || w.declaration.kind === "forcedDeal") {
         preview = { kind: "card", cardId: w.declaration.targetCardId };
       } else if (w.declaration.kind === "debtCollector") {
@@ -322,6 +363,15 @@ function PlayingTableInner({
         );
         const baseRent = baseGroup ? rentForUI(baseGroup) : 0;
         preview = { kind: "amount", amount: baseRent * w.declaration.multiplier };
+      } else if (w.declaration.kind === "dealBreaker") {
+        // The whole set is on the line — render the strip so the defender
+        // can weigh "burn JSN now" against losing every card in the group.
+        const decl = w.declaration;
+        const targetPlayer = state.players.find((p) => p.id === decl.targetId);
+        const grp = targetPlayer?.propertySets[decl.targetGroupIdx];
+        if (grp) {
+          preview = { kind: "set", cardIds: grp.cardIds, color: grp.color };
+        }
       }
       return (
         <Wrapper state={state}>
@@ -602,9 +652,7 @@ function PlayingTableInner({
             if (draft.isWild) {
               setDraft({ kind: "rent-pick-target", cardId: draft.cardId, color });
             } else {
-              send({ type: "PLAY_RENT", playerId: selfId, cardId: draft.cardId, color });
-              setDraft(null);
-              setSelectedCardId(null);
+              proceedToRentDoublesOrSend(color);
             }
           }}
           onCancel={() => setDraft(null)}
@@ -615,18 +663,48 @@ function PlayingTableInner({
   }
 
   if (draft?.kind === "rent-pick-target") {
+    const dr = draft;
     return (
       <Wrapper state={state}>
         <PlayerPicker
           title="Pick the opponent to charge"
           opponents={opponents}
-          onPick={(pid) => {
+          onPick={(pid) => proceedToRentDoublesOrSend(dr.color, pid)}
+          onCancel={() => setDraft(null)}
+        />
+        <RestOfTable state={state} self={self} opponents={opponents} currentPlayer={currentPlayer} isMyTurn={isMyTurn} selectedCardId={null} setSelectedCardId={setSelectedCardId} flashingCardIds={flashingCardIds} />
+      </Wrapper>
+    );
+  }
+
+  if (draft?.kind === "rent-pick-doubles") {
+    const dr = draft;
+    const doubles = self.hand.filter((cid) => {
+      const c = cardById(cid);
+      return c.kind === "action" && c.action === "doubleRent";
+    });
+    const baseGroup = self.propertySets.find((g) => g.color === dr.color);
+    const baseRent = baseGroup ? rentForUI(baseGroup) : 0;
+    const card = cardById(dr.cardId);
+    const isWild = card.kind === "action" && card.action === "rent" && !!card.rentSingleTarget;
+    const targetCount = isWild ? 1 : opponents.length;
+    return (
+      <Wrapper state={state}>
+        <RentDoublePicker
+          doubleCardIds={doubles}
+          baseRent={baseRent}
+          multiTarget={!isWild}
+          targetCount={targetCount}
+          playsRemaining={state.playsRemaining}
+          color={dr.color}
+          onConfirm={(selected) => {
             send({
               type: "PLAY_RENT",
               playerId: selfId,
-              cardId: draft.cardId,
-              color: draft.color,
-              singleTargetId: pid,
+              cardId: dr.cardId,
+              color: dr.color,
+              singleTargetId: dr.singleTargetId,
+              doubleRentCardIds: selected.length > 0 ? selected : undefined,
             });
             setDraft(null);
             setSelectedCardId(null);
@@ -1572,15 +1650,25 @@ function CardActionButtons({
               {banks}
             </>,
           );
-        case "doubleRent":
+        case "doubleRent": {
+          // Double The Rent is a rider — it can't be played on its own. The
+          // player picks it up by playing a Rent card; the rent draft will
+          // ask whether to stack 1 or 2 doubles for ×2 / ×4 demands.
+          const hasRent = self.hand.some((cid) => {
+            const c = cardById(cid);
+            return c.kind === "action" && c.action === "rent";
+          });
           return wrap(
             <>
               <span className="flex-1 self-center px-2 text-xs opacity-70">
-                Plays only with a Rent card. (Bank for now.)
+                {hasRent
+                  ? "Stack on your next Rent for ×2 (or ×4 with two)."
+                  : "Pairs with a Rent card to multiply (×2 or ×4). No Rent in hand — bank for $1M."}
               </span>
               {banks}
             </>,
           );
+        }
       }
     }
   }

@@ -411,6 +411,166 @@ export function RentColorPicker({
 }
 
 // ---------------------------------------------------------------------------
+// RentDoublePicker — final step before sending PLAY_RENT. Lets the active
+// player stack 0/1/2 Double The Rent cards onto the rent demand. Each double
+// adds 1 to the play cost and doubles the multiplier (×1 → ×2 → ×4).
+//
+// Engine already accepts `doubleRentCardIds: CardId[]` on PLAY_RENT; this
+// dialog is purely an opt-in UI surface so the iconic ×4 hotel'd-set rent
+// moment is reachable. Shown only when the player has at least one Double
+// The Rent in hand AND ≥ 2 plays remaining (1 for the Rent + 1 for the
+// double); the second double additionally gates on ≥ 3 plays remaining.
+// ---------------------------------------------------------------------------
+
+export function RentDoublePicker({
+  doubleCardIds,
+  baseRent,
+  multiTarget,
+  targetCount,
+  playsRemaining,
+  color,
+  onConfirm,
+  onCancel,
+}: {
+  doubleCardIds: CardId[]; // Double The Rent cards in the player's hand (max 2 used)
+  baseRent: number; // computed from rentForGroup at the chosen color
+  multiTarget: boolean; // 2-color rent charges all opponents; ★ wild charges one
+  targetCount: number; // # opponents that will be charged (for the per-vs-total preview)
+  playsRemaining: number;
+  color: SetColor;
+  onConfirm: (selectedDoubleIds: CardId[]) => void;
+  onCancel: () => void;
+}) {
+  const usable = doubleCardIds.slice(0, 2);
+  const [selectedIds, setSelectedIds] = useState<CardId[]>([]);
+
+  const multiplier = 1 << selectedIds.length; // 1, 2, 4
+  const playCost = 1 + selectedIds.length;
+  const perTarget = baseRent * multiplier;
+  const totalDue = perTarget * targetCount;
+
+  const canSelectAnother = usable.length > selectedIds.length && playCost + 1 <= playsRemaining;
+
+  function toggle(cid: CardId) {
+    setSelectedIds((prev) => {
+      if (prev.includes(cid)) return prev.filter((x) => x !== cid);
+      // Adding: only allow if plays still cover the new cost.
+      if (1 + prev.length + 1 > playsRemaining) return prev;
+      return [...prev, cid];
+    });
+  }
+
+  return (
+    <Modal title="Multiply this rent?" onCancel={onCancel} testId="rent-double-picker">
+      <p className="mb-3 text-xs text-[var(--color-ink-soft)]">
+        Each Double The Rent stacks the demand and uses one extra play.
+      </p>
+      <div className="mb-3 rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-tint)] p-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
+            <span
+              className="mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle"
+              style={{
+                backgroundColor: `var(--color-set-${color.replace(/([A-Z])/g, "-$1").toLowerCase()})`,
+              }}
+              aria-hidden
+            />
+            <span className="capitalize">{color}</span> rent
+          </span>
+          <span className="tabular text-sm text-[var(--color-ink-soft)]">
+            base ${baseRent}M{multiplier > 1 ? ` × ${multiplier}` : ""}
+          </span>
+        </div>
+        <div className="mt-1 flex items-baseline gap-2">
+          <span className="tabular font-display text-3xl font-bold text-[var(--color-ink)]">
+            ${perTarget}M
+          </span>
+          {multiTarget && targetCount > 1 && (
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
+              per opponent · ${totalDue}M total
+            </span>
+          )}
+          {!multiTarget && (
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
+              owed
+            </span>
+          )}
+        </div>
+        <div className="mt-2 text-[11px] text-[var(--color-ink-soft)]">
+          Costs <span className="tabular font-semibold text-[var(--color-ink)]">{playCost}</span> of your{" "}
+          <span className="tabular font-semibold text-[var(--color-ink)]">{playsRemaining}</span> plays
+          {playCost === playsRemaining && playsRemaining > 1 ? " — ends your turn" : ""}.
+        </div>
+      </div>
+
+      <div className="mb-3 flex flex-wrap gap-2">
+        {usable.map((cid, i) => {
+          const sel = selectedIds.includes(cid);
+          // Disabled when not currently selected AND adding would exceed plays.
+          const disabled = !sel && 1 + selectedIds.length + 1 > playsRemaining;
+          return (
+            <button
+              key={cid}
+              type="button"
+              onClick={() => !disabled && toggle(cid)}
+              disabled={disabled}
+              data-testid={`rent-double-toggle-${i}`}
+              className={[
+                "rounded p-1 transition",
+                sel
+                  ? "ring-2 ring-[var(--color-accent)]"
+                  : disabled
+                    ? "opacity-40"
+                    : "ring-1 ring-[var(--color-ink)]/15 hover:ring-[var(--color-accent)]/55",
+              ].join(" ")}
+              title={
+                disabled
+                  ? "Not enough plays remaining"
+                  : sel
+                    ? "Click to remove from rent stack"
+                    : "Click to stack on this rent"
+              }
+            >
+              <Card cardId={cid} size="sm" selected={sel} animated={false} />
+            </button>
+          );
+        })}
+        {usable.length === 0 && (
+          <span className="text-xs text-[var(--color-ink-soft)]">No Double The Rent cards in hand.</span>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          variant="primary"
+          fullWidth
+          onClick={() => onConfirm(selectedIds)}
+          data-testid="rent-double-confirm"
+        >
+          {multiplier > 1
+            ? `Charge ×${multiplier} ($${perTarget}M${multiTarget && targetCount > 1 ? "/each" : ""})`
+            : `Charge $${perTarget}M${multiTarget && targetCount > 1 ? "/each" : ""}`}
+        </Button>
+        {selectedIds.length > 0 && (
+          <Button
+            variant="ghost"
+            onClick={() => setSelectedIds([])}
+            data-testid="rent-double-clear"
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+      {canSelectAnother && selectedIds.length === 1 && (
+        <p className="mt-2 text-[11px] text-[var(--color-ink-faint)]">
+          Tip: stack a second Double for ×4 (uses {playCost + 1} plays).
+        </p>
+      )}
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // PaymentDialog — pick cards from your bank/properties totaling >= owed (or all)
 // ---------------------------------------------------------------------------
 
@@ -585,8 +745,14 @@ export function JsnPrompt({
   jsnInHand: CardId | null;
   // How many Counter cards the responder currently holds (so they can plan).
   jsnInventory: number;
-  // Optional richer preview (the card or amount at stake).
-  preview?: { kind: "card"; cardId: CardId } | { kind: "amount"; amount: number };
+  // Optional richer preview (the card / amount / set at stake). The `set`
+  // variant is used for Deal Breaker, where the entire group is on the line —
+  // showing the strip makes the "burn JSN now or kiss this set goodbye"
+  // decision concrete.
+  preview?:
+    | { kind: "card"; cardId: CardId }
+    | { kind: "amount"; amount: number }
+    | { kind: "set"; cardIds: CardId[]; color: SetColor };
   // How deep the JSN war is (0 = first response). Useful to convey escalation.
   chainDepth: number;
   // For inline rendering of the triggering log entry — the most recent
@@ -616,6 +782,30 @@ export function JsnPrompt({
           <span className="font-semibold text-[var(--color-ink)]">At stake: </span>
           You'll owe <span className="tabular font-semibold text-[var(--color-ink)]">${preview.amount}M</span>.
           You can pay with money or properties.
+        </div>
+      )}
+      {preview?.kind === "set" && (
+        <div
+          className="mb-3 rounded-xl border-2 border-[var(--color-accent)] bg-[var(--color-accent-tint)] p-3"
+          data-testid="jsn-preview-set"
+          style={{
+            borderTopWidth: 8,
+            borderTopColor: `var(--color-set-${preview.color.replace(/([A-Z])/g, "-$1").toLowerCase()})`,
+          }}
+        >
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-ink)]">
+              At stake — entire <span className="capitalize">{preview.color}</span> set
+            </span>
+            <span className="rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white">
+              Deal breaker
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {preview.cardIds.map((cid) => (
+              <Card key={cid} cardId={cid} size="sm" animated={false} />
+            ))}
+          </div>
         </div>
       )}
       <p className="mb-4 text-xs text-[var(--color-ink-faint)]">{ACTION_DESCRIPTIONS.justSayNo}</p>
@@ -800,23 +990,30 @@ export function HouseHotelTargetPicker({
   onPick: (color: SetColor) => void;
   onCancel: () => void;
 }) {
+  // Filter to only complete standard-color sets the engine would actually
+  // accept. RR/Util are excluded; sets must be complete (cardIds.length >=
+  // SET_DEFS[color].complete, which can overcomplete after a Deal Breaker
+  // stacks groups, but the comparison still holds). Hotels additionally
+  // require an existing house and no hotel yet; houses require no house yet.
   const candidates = self.propertySets.filter((g) => {
     if (!STANDARD_COLORS.includes(g.color)) return false;
-    if (g.cardIds.length < 5) {
-      // We don't know the exact complete count here without cards.ts; defer to engine.
-    }
+    if (g.cardIds.length < SET_DEFS[g.color].complete) return false;
     if (needsHouse) return g.hasHouse && !g.hasHotel;
     return !g.hasHouse;
   });
   return (
     <Modal title={title} onCancel={onCancel} testId="house-target">
       {candidates.length === 0 ? (
-        <p className="text-sm text-[var(--color-ink-soft)]">No eligible sets.</p>
+        <p className="text-sm text-[var(--color-ink-soft)]">
+          {needsHouse
+            ? "No complete set with a house and no hotel yet."
+            : "No complete standard-color set without a house yet."}
+        </p>
       ) : (
         <div className="grid gap-2">
-          {candidates.map((g) => (
+          {candidates.map((g, idx) => (
             <button
-              key={g.color}
+              key={`${g.color}-${idx}`}
               onClick={() => onPick(g.color)}
               data-testid={`house-pick-${g.color}`}
               className="rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-card)] px-3 py-2 text-left font-semibold capitalize text-[var(--color-ink)] transition-colors hover:bg-[var(--color-tint)] hover:border-[var(--color-accent)]/40"

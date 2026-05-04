@@ -394,7 +394,16 @@ export function AnimationLayer() {
               multiplier: e.multiplier,
             });
           }
+          // Amp on multiplied rent — Double The Rent stacks deserve a punch
+          // proportional to the demand. ×2 gets a louder demand + bump on
+          // every player; ×4 also shakes the table to underline the moment.
+          const mult = e.multiplier ?? 1;
+          if (mult > 1) {
+            playSfx("theft", mult >= 4 ? 1.1 : 0.85);
+            if (mult >= 4) shakeTable();
+          }
           if (isSelfMultiTarget || isSelfTarget) haptics.bump();
+          if (mult > 1 && (isSelfMultiTarget || isSelfTarget)) haptics.clash();
           break;
         }
         case "justSayNo": {
