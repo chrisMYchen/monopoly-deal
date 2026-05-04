@@ -1132,6 +1132,15 @@ function SelfArea({
               your turn
             </span>
           )}
+          {completedSets >= 2 && completedSets < 3 && (
+            <span
+              className="rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white"
+              title="You have 2 of 3 sets — one more wins"
+              data-testid="self-threat-badge"
+            >
+              1 from winning
+            </span>
+          )}
           <SetProgress count={completedSets} highlight />
         </h2>
         <div className="flex items-center gap-2 text-xs opacity-70">
