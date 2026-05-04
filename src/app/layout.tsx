@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, Inter, Source_Serif_4 } from "next/font/google";
+import { Anton, DM_Sans, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
 // Card titles only — canon-faithful condensed caps for property + action
@@ -21,8 +21,12 @@ const display = Source_Serif_4({
   display: "swap",
 });
 
-// Body UI font. Plain Inter at default weights — quiet, neutral, NYT-clean.
-const sans = Inter({
+// Body UI font. DM Sans variable axis — quiet humanist sans, supports
+// tabular-nums via the .tabular utility for bank totals and rent payments.
+// Pairs with Source Serif 4's warmth without the AI-default convergence smell
+// of Inter. The variable axis gives us every weight from a single font file
+// (smaller payload than 4 static cuts). See DESIGN.md.
+const sans = DM_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
