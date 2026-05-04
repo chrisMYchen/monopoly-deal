@@ -15,7 +15,12 @@
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
     "server:dev": "bun worker/src/dev-server.ts",
     "server:dev:inject": "DEV_INJECT=1 bun worker/src/dev-server.ts",
-    "test:e2e": "bun worker/test/scenarios.ts"
+    "test:e2e": "bun worker/test/scenarios.ts",
+    "test:reconnect": "bun worker/test/reconnect.ts",
+    "cloud:bootstrap": "bash scripts/cloud-bootstrap.sh",
+    "dev:all": "bun scripts/dev-all.ts",
+    "check:up": "bun scripts/check-up.ts",
+    "sim:headless": "bun sim/headless.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
