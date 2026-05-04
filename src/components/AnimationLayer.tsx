@@ -259,8 +259,31 @@ export function AnimationLayer() {
           break;
         }
         case "passGo": {
+          // Pass Go's defining beat is the +N cards arriving — the routine
+          // turn-start `draw` case (above) already pulses deck + hand for
+          // every draw, but the engine emits no separate `draw` event when
+          // Pass Go pulls cards (drawCardsInto runs silently). Without
+          // mirroring the cues here, the bonus is invisible: the actor sees
+          // the action card disappear and a same-as-anything `cardPlay`
+          // thwip, with the +2 cards just appearing in their hand.
           playSfx("cardPlay", isSelfActor ? 0.9 : 0.45);
           if (isSelfActor) haptics.tap();
+          pulseDeck();
+          if (e.actorId) pulseHandCount(e.actorId);
+          if (e.count) {
+            const r = rectOfDeck();
+            if (r) {
+              pushOverlay({
+                ttl: 850,
+                kind: "bigNumber",
+                text: `+${e.count}`,
+                x: r.left + r.width / 2,
+                y: r.top + r.height / 2,
+                tone: "good",
+                scale: 1.05,
+              });
+            }
+          }
           break;
         }
         case "reassignWild": {
