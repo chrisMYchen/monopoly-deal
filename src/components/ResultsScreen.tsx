@@ -2,7 +2,8 @@
 
 import { motion } from "motion/react";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { MrMonopoly } from "./ui/MrMonopoly";
 import { PlayerAvatar } from "./PlayerAvatar";
@@ -10,12 +11,27 @@ import { PropertySetsView } from "./PropertySetsView";
 import { Button } from "./ui/Button";
 import { SET_DEFS } from "@/engine/cards";
 import { useGame } from "@/lib/gameStore";
+import { getWorkerOrigin } from "@/lib/config";
 import { playSfx } from "@/lib/animations/audio";
 import { winRoll } from "@/lib/animations/confetti";
 import { haptics } from "@/lib/animations/haptics";
 
 export function ResultsScreen() {
   const state = useGame((s) => s.state);
+  const router = useRouter();
+  const [rematchBusy, setRematchBusy] = useState(false);
+
+  const handlePlayAgain = async () => {
+    setRematchBusy(true);
+    try {
+      const res = await fetch(`${getWorkerOrigin()}/api/rooms`, { method: "POST" });
+      if (!res.ok) throw new Error(`room create failed (${res.status})`);
+      const { code } = (await res.json()) as { code: string };
+      router.push(`/r/?code=${code}`);
+    } finally {
+      setRematchBusy(false);
+    }
+  };
 
   // Win celebration on mount: confetti roll + win SFX + success haptic.
   // The AnimationLayer also fires for the `win` log event during the
@@ -117,11 +133,22 @@ export function ResultsScreen() {
         })}
       </section>
 
-      <Link href="/" data-testid="back-home" className="mt-2">
-        <Button variant="primary" size="lg">
-          Back to home
+      <div className="mt-2 flex flex-col items-center gap-3">
+        <Button
+          onClick={handlePlayAgain}
+          disabled={rematchBusy}
+          variant="primary"
+          size="lg"
+          data-testid="play-again"
+        >
+          {rematchBusy ? "Creating room…" : "Play again"}
         </Button>
-      </Link>
+        <Link href="/" data-testid="back-home">
+          <Button variant="ghost" size="sm">
+            Back to home
+          </Button>
+        </Link>
+      </div>
     </main>
   );
 }
