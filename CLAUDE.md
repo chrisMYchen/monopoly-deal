@@ -50,11 +50,34 @@ sim/                    # gstack-driven local sim (UX iteration, not regression)
 | `bun run typecheck`           | App TypeScript check                          |
 | `bun run typecheck:worker`    | Worker TypeScript check                       |
 | `bun run test:e2e`            | Worker scenario tests (`bun worker/test/scenarios.ts`) |
-| `bun run server:dev:inject`   | Bun-native dev worker on :8787 with `/dev/state/` injection (sim prereq) |
-| `bun sim/play.ts`             | Local AI sim: 4 gstack tabs, greedy bots, mobile+desktop viewports, moment screenshots → `runs/<seed>-<ts>/` |
+| `bun run server:dev:inject`   | Bun-native dev worker on :8787 with `/dev/state/` injection (sim + e2e prereq) |
+| `bun run dev:all`             | Both servers in one foreground process (Next + bun dev-server-inject) |
+| `bun run check:up`            | Polls :3000 + :8787, exits 0 once both respond — gate before running sim/e2e |
+| `bun run sim:headless`        | Multi-seat sim over WebSockets, no browser. Greedy policy, deterministic, ~1s per game → `runs/headless-<seed>-<ts>/` |
+| `bun sim/play.ts`             | Local visual sim: 4 gstack tabs, greedy bots, mobile+desktop viewports, moment screenshots → `runs/<seed>-<ts>/`. **Local only** — needs gstack/Playwright. |
+| `bun run cloud:bootstrap`     | Cold-start setup for a fresh sandbox: install bun if missing, install deps, typecheck, vitest |
+| `bun run test:reconnect`      | Reconnect-path scenario suite (mid-game disconnect/replay) |
 | `bun run worker:deploy`       | Deploy Worker + DO to Cloudflare              |
 
-Local dev runs both servers in parallel: terminal A `bun run dev`, terminal B `bun run worker:dev`. The frontend connects to `http://localhost:8787` for the WebSocket.
+Local dev runs both servers in parallel: terminal A `bun run dev`, terminal B `bun run worker:dev` (or one terminal: `bun run dev:all`). The frontend connects to `http://localhost:8787` for the WebSocket.
+
+## Cloud cold start
+
+For agents running in a fresh cloud sandbox (Claude cloud, Codex, Codespaces, generic Linux VM):
+
+```
+bun run cloud:bootstrap   # ~30s: install bun if missing, deps, typechecks, vitest
+bun run dev:all &         # both servers, one process group (ctrl-c stops both)
+bun run check:up          # blocks until :3000 + :8787 respond
+bun run sim:headless      # full game over WS, no browser, deterministic
+bun run test:e2e          # WS scenario tests against the dev-server
+```
+
+Cloud-safe: typechecks, vitest, e2e scenarios, headless sim, `bun run build`. All deterministic, all browserless, all secret-free. Pin `SEED=<n>` for reproducible sim runs.
+
+Local-only (skip in cloud): `sim/play.ts` (needs gstack/Playwright), gstack-prefixed skills (`/qa`, `/design-review`, `/browse`, etc. — they need a real browser daemon), `worker:deploy` (needs CF API token, CI-only).
+
+When changes affect rendering and you can't run a browser, lean on the headless sim for "does the game still complete?" and on screenshots already in `runs/` from prior local runs for "does it still look right?". Flag explicitly that visual QA was skipped.
 
 ## Architecture decisions
 
@@ -93,7 +116,7 @@ Things that have bitten us or are easy to misread.
 ## Workflow
 
 - For engine changes: write a failing Vitest first (`src/engine/*.test.ts`), then implement, then `bun run test:run`.
-- For UI changes: exercise the feature in a browser before declaring done — type checks pass on plenty of broken UIs.
+- For UI changes: exercise the feature in a browser before declaring done — type checks pass on plenty of broken UIs. In cloud, fall back to `bun run sim:headless` and call out that visual QA was skipped.
 - For "does the *experience* feel right" / cross-device layout: `bun sim/play.ts` runs a full 4-bot game end-to-end (~100s) and saves per-seat screenshots at moments + a final-state grid. Use it for design iteration, animation tuning, and mobile/desktop parity — not as a substitute for the Vitest engine suite. Requires `bun run dev` + `bun run server:dev:inject` running. The dev-only `window.__rr` bridge it leans on is gated by `NODE_ENV !== "production"`.
 - Run `bun run typecheck && bun run typecheck:worker` before commit.
 - Reach for the existing test helpers (`newGame()`, `injectHand()`, `findCard()`) instead of fishing through random draws.
