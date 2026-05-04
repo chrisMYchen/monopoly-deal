@@ -13,17 +13,21 @@ export type RentDemandProps = {
   multiplier?: number;
 };
 
+// Property color chips reuse the canon set color tokens — no duplicate
+// colorways. The rent demand banner itself is solid Monopoly red so the
+// "you owe money" cue is impossible to miss but still NYT-clean (no glow,
+// no gold, no blur shadows).
 const COLOR_CHIP: Record<string, string> = {
-  brown: "bg-amber-700",
-  lightBlue: "bg-sky-300",
-  pink: "bg-pink-400",
-  orange: "bg-orange-400",
-  red: "bg-red-500",
-  yellow: "bg-yellow-300",
-  green: "bg-emerald-500",
-  darkBlue: "bg-blue-700",
-  railroad: "bg-zinc-700",
-  utility: "bg-lime-400",
+  brown: "bg-[var(--color-set-brown)]",
+  lightBlue: "bg-[var(--color-set-light-blue)]",
+  pink: "bg-[var(--color-set-pink)]",
+  orange: "bg-[var(--color-set-orange)]",
+  red: "bg-[var(--color-set-red)]",
+  yellow: "bg-[var(--color-set-yellow)]",
+  green: "bg-[var(--color-set-green)]",
+  darkBlue: "bg-[var(--color-set-dark-blue)]",
+  railroad: "bg-[var(--color-set-railroad)]",
+  utility: "bg-[var(--color-set-utility)]",
 };
 
 export function RentDemand({ amount, color, fromName, multiplier }: RentDemandProps) {
@@ -42,23 +46,23 @@ export function RentDemand({ amount, color, fromName, multiplier }: RentDemandPr
       }}
       className="pointer-events-none fixed left-1/2 top-16 z-[60] -translate-x-1/2"
     >
-      <div className="flex items-center gap-3 rounded-full bg-zinc-900/90 px-5 py-2.5 ring-2 ring-yellow-300/70 shadow-[0_8px_40px_rgba(250,204,21,0.4)] backdrop-blur">
+      <div className="flex items-center gap-3 rounded-full bg-[var(--color-accent)] px-5 py-2.5 text-[var(--color-ink-on-dark)]">
         {color && (
           <span
-            className={`inline-block h-3 w-3 rounded-full ${COLOR_CHIP[color] ?? "bg-zinc-400"}`}
+            className={`inline-block h-3 w-3 rounded-full ring-2 ring-white/60 ${COLOR_CHIP[color] ?? "bg-white"}`}
             aria-hidden
           />
         )}
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-extrabold text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.7)]">
+          <span className="tabular font-display text-2xl font-bold">
             ${amount}M
           </span>
           {multiplier && multiplier > 1 ? (
-            <span className="text-sm font-bold text-yellow-200/90">×{multiplier}</span>
+            <span className="tabular text-sm font-bold opacity-85">×{multiplier}</span>
           ) : null}
-          <span className="text-sm uppercase tracking-wider text-yellow-100/90">RENT</span>
+          <span className="text-xs font-bold uppercase tracking-[0.18em]">RENT</span>
         </div>
-        <span className="text-xs uppercase tracking-wider text-zinc-300">
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] opacity-90">
           to {fromName}
         </span>
       </div>

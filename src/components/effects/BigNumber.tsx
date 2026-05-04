@@ -8,12 +8,16 @@ import { motion } from "motion/react";
 
 export type BigNumberTone = "good" | "bad" | "neutral" | "celebration";
 
+// BigNumber floats are short-lived overlays. The brand discipline is to keep
+// the celebration palette inside the editorial system: ink for neutral, the
+// canonical red for celebration moments, success-green for gains, accent-red
+// for losses. No glowy yellow-on-everything — confetti carries the festivity.
 const TONE_CLASSES: Record<BigNumberTone, string> = {
-  good: "text-emerald-300 drop-shadow-[0_0_18px_rgba(52,211,153,0.7)]",
-  bad: "text-rose-400 drop-shadow-[0_0_18px_rgba(251,113,133,0.7)]",
-  neutral: "text-zinc-100 drop-shadow-[0_0_14px_rgba(228,228,231,0.6)]",
+  good: "text-[var(--color-success)] drop-shadow-[0_2px_8px_rgba(31,122,77,0.45)]",
+  bad: "text-[var(--color-accent)] drop-shadow-[0_2px_8px_rgba(217,36,42,0.45)]",
+  neutral: "text-[var(--color-ink)] drop-shadow-[0_2px_8px_rgba(17,17,17,0.35)]",
   celebration:
-    "text-yellow-300 drop-shadow-[0_0_22px_rgba(250,204,21,0.85)]",
+    "text-[var(--color-accent)] drop-shadow-[0_2px_12px_rgba(217,36,42,0.55)]",
 };
 
 export type BigNumberProps = {
