@@ -1475,7 +1475,6 @@ function drawCardsInto(s: GameState, player: Player, count: number): void {
 }
 
 function checkWin(s: GameState): void {
-  if (s.pending !== null) return;
   for (const player of s.players) {
     const completedColors = new Set<SetColor>();
     for (const group of player.propertySets) {
@@ -1486,6 +1485,7 @@ function checkWin(s: GameState): void {
     if (completedColors.size >= 3) {
       s.phase = "ended";
       s.winnerId = player.id;
+      s.pending = null; // clear any in-flight payment chain
       s.log.push({
         at: s.currentTurn,
         message: `${player.name} wins with ${completedColors.size} complete sets!`,
