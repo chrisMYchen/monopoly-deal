@@ -45,21 +45,21 @@ export function DiscardPile({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-8"
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-[var(--color-felt)]/55 backdrop-blur-sm sm:items-center sm:justify-center sm:p-8"
           role="dialog"
           aria-modal="true"
           aria-label="Discard pile"
           onClick={() => setOpen(false)}
         >
           <div
-            className="max-h-[80vh] w-full overflow-y-auto rounded-t-xl border border-white/15 bg-zinc-900 p-4 shadow-2xl sm:max-w-2xl sm:rounded-xl"
+            className="surface-paper max-h-[80vh] w-full overflow-y-auto rounded-t-3xl p-5 sm:max-w-2xl sm:rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Discard pile · {count}</h3>
+              <h3 className="font-display text-xl font-semibold text-[var(--color-ink)]">Discard pile · {count}</h3>
               <button
                 onClick={() => setOpen(false)}
-                className="rounded px-2 py-1 text-sm opacity-70 hover:bg-white/10 hover:opacity-100"
+                className="rounded-full px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-tint)] hover:text-[var(--color-ink)]"
               >
                 Close
               </button>
