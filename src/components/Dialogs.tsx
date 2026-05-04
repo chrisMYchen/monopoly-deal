@@ -700,23 +700,38 @@ export function PaymentDialog({
   );
 }
 
-// Greedy: smallest-value-first until we cover the debt. If total assets are
-// less than owed, returns ALL assets (the must-offer-everything path).
+// Greedy auto-pay. Mirrors `pickAutoPayment` in engine/autoAction.ts: bank
+// cheapest-first, then loose-set property cards cheapest-first, then complete-
+// set property cards cheapest-first as a last resort. Without the tiering, a
+// $1 brown standing in a complete pair would be picked over a $2 loose pink,
+// breaking your monopoly to cover a $1 debt — exactly the worst auto-pay.
+// If total assets are less than owed, returns ALL assets (must-offer-everything).
 function autoCover(payer: ProjectedPlayer, owed: number): Set<CardId> {
-  const all: { id: CardId; value: number }[] = [
-    ...payer.bank.map((id) => ({ id, value: bankValueOf(cardById(id)) })),
-    ...payer.propertySets.flatMap((g) => g.cardIds.map((id) => ({ id, value: bankValueOf(cardById(id)) }))),
-  ];
-  const total = all.reduce((s, c) => s + c.value, 0);
-  if (total <= owed) return new Set(all.map((c) => c.id));
-  // Sort cheapest-first; greedily add until covering. Cards with $0 value
-  // (wilds) don't help reach the threshold — keep them at the end.
-  const sorted = [...all].sort((a, b) => a.value - b.value);
+  const bank = payer.bank.map((id) => ({ id, value: bankValueOf(cardById(id)) }));
+  const looseProps: { id: CardId; value: number }[] = [];
+  const completeProps: { id: CardId; value: number }[] = [];
+  for (const g of payer.propertySets) {
+    const isComplete = g.cardIds.length >= SET_DEFS[g.color].complete;
+    const bucket = isComplete ? completeProps : looseProps;
+    for (const cid of g.cardIds) bucket.push({ id: cid, value: bankValueOf(cardById(cid)) });
+  }
+  const total =
+    bank.reduce((s, c) => s + c.value, 0) +
+    looseProps.reduce((s, c) => s + c.value, 0) +
+    completeProps.reduce((s, c) => s + c.value, 0);
+  if (total <= owed) {
+    return new Set([...bank, ...looseProps, ...completeProps].map((c) => c.id));
+  }
+  const byValue = (a: { value: number }, b: { value: number }) => a.value - b.value;
+  bank.sort(byValue);
+  looseProps.sort(byValue);
+  completeProps.sort(byValue);
+  const ordered = [...bank, ...looseProps, ...completeProps];
   const picked: CardId[] = [];
   let sum = 0;
-  for (const c of sorted) {
+  for (const c of ordered) {
     if (sum >= owed) break;
-    if (c.value === 0) continue;
+    if (c.value === 0) continue; // $0 wilds don't help cover the threshold
     picked.push(c.id);
     sum += c.value;
   }
