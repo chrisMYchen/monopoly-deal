@@ -11,6 +11,11 @@ export type RentDemandProps = {
   color?: string;
   fromName: string;
   multiplier?: number;
+  // Banner label — defaults to "RENT" but Birthday reuses this same banner
+  // shape with "BIRTHDAY" and a cake glyph so the iconic "$2M from EVERYONE"
+  // beat lands as loudly as a multi-target Rent.
+  label?: string;
+  glyph?: string;
 };
 
 // Property color chips reuse the canon set color tokens — no duplicate
@@ -30,7 +35,8 @@ const COLOR_CHIP: Record<string, string> = {
   utility: "bg-[var(--color-set-utility)]",
 };
 
-export function RentDemand({ amount, color, fromName, multiplier }: RentDemandProps) {
+export function RentDemand({ amount, color, fromName, multiplier, label, glyph }: RentDemandProps) {
+  const banner = label ?? "RENT";
   return (
     <motion.div
       initial={{ opacity: 0, y: -40, scale: 0.92 }}
@@ -47,6 +53,7 @@ export function RentDemand({ amount, color, fromName, multiplier }: RentDemandPr
       className="pointer-events-none fixed left-1/2 top-16 z-[60] -translate-x-1/2"
     >
       <div className="flex items-center gap-3 rounded-full bg-[var(--color-accent)] px-5 py-2.5 text-[var(--color-ink-on-dark)]">
+        {glyph && <span aria-hidden className="text-lg leading-none">{glyph}</span>}
         {color && (
           <span
             className={`inline-block h-3 w-3 rounded-full ring-2 ring-white/60 ${COLOR_CHIP[color] ?? "bg-white"}`}
@@ -60,7 +67,7 @@ export function RentDemand({ amount, color, fromName, multiplier }: RentDemandPr
           {multiplier && multiplier > 1 ? (
             <span className="tabular text-sm font-bold opacity-85">×{multiplier}</span>
           ) : null}
-          <span className="text-xs font-bold uppercase tracking-[0.18em]">RENT</span>
+          <span className="text-xs font-bold uppercase tracking-[0.18em]">{banner}</span>
         </div>
         <span className="text-xs font-semibold uppercase tracking-[0.16em] opacity-90">
           to {fromName}

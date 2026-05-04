@@ -65,6 +65,8 @@ type Overlay =
       color?: string;
       fromName: string;
       multiplier?: number;
+      label?: string;
+      glyph?: string;
     }
   | {
       id: string;
@@ -354,6 +356,27 @@ export function AnimationLayer() {
           // Quiet cue — no SFX (handled by the action that broke it).
           break;
         }
+        case "reshuffle": {
+          // Discard recycles into the deck. Without a cue this fires as a
+          // silent log line and the count flip on the deck is the only hint.
+          // SFX + deck pulse + a tiny "RECYCLED" float gives the moment
+          // weight; everyone needs to know cards are back in play.
+          playSfx("reshuffle", 0.85);
+          pulseDeck();
+          const r = rectOfDeck();
+          if (r) {
+            pushOverlay({
+              ttl: 1100,
+              kind: "bigNumber",
+              text: "↻ RECYCLED",
+              x: r.left + r.width / 2,
+              y: r.top + r.height / 2,
+              tone: "neutral",
+              scale: 1,
+            });
+          }
+          break;
+        }
         case "slyDeal": {
           // Two events fire under this kind: declaration and applied steal.
           // Both are useful — the declaration warns the table, the apply moves
@@ -440,6 +463,21 @@ export function AnimationLayer() {
           playSfx("moneyPickup");
           if (isSelfActor) haptics.success();
           if (isSelfMultiTarget) haptics.bump();
+          // Birthday is a multi-target demand identical in shape to Rent
+          // (everyone owes the actor) and deserves the same dramatic banner.
+          // Without it, the iconic "$2M from EVERYONE" beat lands as just
+          // a SFX while Rent gets the full top-of-screen drama.
+          if (e.actorId) {
+            const fromName = playerNameById.get(e.actorId) ?? "Player";
+            pushOverlay({
+              ttl: 3450,
+              kind: "rentDemand",
+              amount: e.amount ?? 0,
+              fromName,
+              label: "BIRTHDAY",
+              glyph: "🎂",
+            });
+          }
           break;
         }
         case "rent": {
@@ -623,6 +661,8 @@ export function AnimationLayer() {
                 color={o.color}
                 fromName={o.fromName}
                 multiplier={o.multiplier}
+                label={o.label}
+                glyph={o.glyph}
               />
             );
           }

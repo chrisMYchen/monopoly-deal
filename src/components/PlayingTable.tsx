@@ -142,6 +142,25 @@ function PlayingTableInner({
   const [selectedCardId, setSelectedCardId] = useState<CardId | null>(null);
   const [draft, setDraft] = useState<ActionDraft>(null);
 
+  // Client-side ephemeral rejection toast for drag-and-drop attempts that
+  // would silently no-op (e.g. dragging a Wild Rent onto an opponent when you
+  // own no matching colors). The ActionBar already explains disabled buttons
+  // via tooltips; this surface covers the drag path which has no equivalent.
+  // Self-only — never sent to other clients.
+  const [rejectMsg, setRejectMsg] = useState<string | null>(null);
+  const rejectTimerRef = useRef<number | null>(null);
+  const flashReject = (msg: string) => {
+    setRejectMsg(msg);
+    if (rejectTimerRef.current != null) window.clearTimeout(rejectTimerRef.current);
+    rejectTimerRef.current = window.setTimeout(() => setRejectMsg(null), 2400);
+  };
+  useEffect(
+    () => () => {
+      if (rejectTimerRef.current != null) window.clearTimeout(rejectTimerRef.current);
+    },
+    [],
+  );
+
   // Cards that just changed hands via Forced Deal — pulse-highlighted in their
   // new owners' play areas until the player has visually registered the swap. Cleared on
   // a timer so the cue doesn't linger past the moment it's useful.
@@ -237,7 +256,12 @@ function PlayingTableInner({
         if (c.action === "rent") {
           const sets = (c.rentSets ?? []) as SetColor[];
           const owned = sets.filter((color) => self.propertySets.some((g) => g.color === color && g.cardIds.length > 0));
-          if (owned.length === 0) return; // no matching properties — engine would reject
+          if (owned.length === 0) {
+            flashReject(
+              `Can't charge rent — you don't own any ${sets.join(" or ")} property yet.`,
+            );
+            return;
+          }
           setDraft({ kind: "rent-pick-color", cardId: card, allowedColors: owned, isWild: !!c.rentSingleTarget });
           return;
         }
@@ -273,7 +297,12 @@ function PlayingTableInner({
           if (c.rentSingleTarget) {
             const sets = (c.rentSets ?? []) as SetColor[];
             const owned = sets.filter((color) => self.propertySets.some((g) => g.color === color && g.cardIds.length > 0));
-            if (owned.length === 0) return; // no matching properties — engine would reject
+            if (owned.length === 0) {
+              flashReject(
+                `Can't charge rent — you don't own any property yet (Wild Rent works on any color you own).`,
+              );
+              return;
+            }
             if (owned.length === 1) {
               proceedToRentDoublesOrSend(owned[0]!, overOpponentId, card);
             } else {
@@ -771,6 +800,7 @@ function PlayingTableInner({
       {state.pending !== null && (
         <SpectatorPendingOverlay state={state} />
       )}
+      {rejectMsg && <RejectToast msg={rejectMsg} />}
       <RestOfTable
         state={state}
         self={self}
@@ -797,6 +827,23 @@ function PlayingTableInner({
         />
       )}
     </Wrapper>
+  );
+}
+
+// Floating rejection toast for client-only "this drag would silently no-op"
+// moments — sits above the bottom action bar so the message lands where the
+// player just dropped the card. Pointer-events:none so it never blocks input.
+function RejectToast({ msg }: { msg: string }) {
+  return (
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-4"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="surface-inked max-w-md rounded-full px-4 py-2 text-center text-xs font-semibold text-[var(--color-ink-on-dark)] shadow-[0_8px_24px_-8px_rgba(15,42,46,0.4)]">
+        {msg}
+      </div>
+    </div>
   );
 }
 
