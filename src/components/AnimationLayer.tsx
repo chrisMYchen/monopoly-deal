@@ -30,6 +30,13 @@ import { ShieldClash } from "./effects/ShieldClash";
 // Cap concurrent overlays so a flurry of events never tiles the screen.
 const MAX_OVERLAYS = 6;
 
+// Throttle window for wildcard-flip SFX. Wildcard reassignment is unbounded
+// within the actor's turn — without coalescing, a player rapid-reassigning
+// would blast every other player's audio. First flip in a burst plays;
+// subsequent flips within the window are silent.
+const WILD_FLIP_THROTTLE_MS = 120;
+let lastWildFlipAt = 0;
+
 type Overlay =
   | {
       id: string;
@@ -256,7 +263,15 @@ export function AnimationLayer() {
           break;
         }
         case "reassignWild": {
-          playSfx("cardPlay", isSelfActor ? 0.7 : 0.4);
+          // Paper-flip metaphor: quick tick + pitch lift, distinct from playing
+          // a card outright. Throttled — rapid reassigns coalesce to one cue
+          // every WILD_FLIP_THROTTLE_MS so a player can't blast the table.
+          const now = Date.now();
+          if (now - lastWildFlipAt >= WILD_FLIP_THROTTLE_MS) {
+            lastWildFlipAt = now;
+            playSfx("wildFlip", isSelfActor ? 0.85 : 0.5);
+            if (isSelfActor) haptics.tap();
+          }
           break;
         }
         case "setComplete": {

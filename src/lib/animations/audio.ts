@@ -15,7 +15,9 @@ export type SfxKey =
   | "clash"
   | "pay"
   | "turn"
-  | "win";
+  | "win"
+  | "wildFlip"
+  | "handOverflow";
 
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
@@ -157,6 +159,27 @@ function play(key: SfxKey, volumeScale: number): void {
       tone(ac, "sine", 880, 0.005, 0.18, 0.28, dest);
       tone(ac, "sine", 1320, 0.01, 0.22, 0.12, dest);
       break;
+    case "wildFlip": {
+      // Quick paper-flip tick + tiny pitch lift. Distinct from generic cardPlay
+      // so reassigning a wildcard between color halves feels physical.
+      noiseBurst(ac, 0.04, 4200, 10, 0.32, dest);
+      tone(ac, "triangle", { from: 540, to: 760, ramp: "exponential" }, 0.005, 0.06, 0.16, dest);
+      break;
+    }
+    case "handOverflow": {
+      // Soft acknowledgment when discard-to-limit prompt appears. Two-note
+      // gentle descent — "you have a thing to do" without scolding.
+      tone(ac, "sine", 520, 0.01, 0.14, 0.18, dest);
+      window.setTimeout(() => {
+        const ac2 = ensureCtx();
+        if (!ac2 || !masterGain) return;
+        const d2 = ac2.createGain();
+        d2.gain.value = volumeScale * 0.85;
+        d2.connect(masterGain);
+        tone(ac2, "sine", 392, 0.01, 0.18, 0.16, d2);
+      }, 90);
+      break;
+    }
     case "win": {
       // Triumphant: ascending arp + held final chord.
       const arp = [392, 523.25, 659.26, 784, 988];

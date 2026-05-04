@@ -111,6 +111,10 @@ Things that have bitten us or are easy to misread.
 - Commit `.env*`, `.dev.vars`, or wrangler secrets.
 - Add `--no-verify` to git commits or skip CI hooks.
 
+## Design system
+
+Always read `DESIGN.md` before making any visual or UI decisions. All font choices, colors, spacing, surface treatments, motion intent, and aesthetic direction are defined there. Do not deviate without explicit user approval. In QA / design-review mode, flag any code that doesn't match `DESIGN.md`.
+
 ## Skills and plans
 
 Detailed implementation plan: `~/.claude/plans/i-want-to-recreate-humble-pinwheel.md`.
@@ -125,3 +129,21 @@ When a user request matches a configured skill, invoke it via the Skill tool as 
 - Architecture review of a plan → `plan-eng-review`
 - Brainstorming a new product idea → `office-hours`
 - Update docs after shipping → `document-release`
+
+## Skill routing
+
+When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.
+
+Key routing rules:
+- Product ideas/brainstorming → invoke /office-hours
+- Strategy/scope → invoke /plan-ceo-review
+- Architecture → invoke /plan-eng-review
+- Design system/plan review → invoke /design-consultation or /plan-design-review
+- Full review pipeline → invoke /autoplan
+- Bugs/errors → invoke /investigate
+- QA/testing site behavior → invoke /qa or /qa-only
+- Code review/diff check → invoke /review
+- Visual polish → invoke /design-review
+- Ship/deploy/PR → invoke /ship or /land-and-deploy
+- Save progress → invoke /context-save
+- Resume context → invoke /context-restore
