@@ -19,6 +19,8 @@ import {
 import type { ProjectedGameState, ProjectedPlayer } from "@/engine/project";
 import type { DeclaredAction, LogEntry } from "@/engine/state";
 import { isComplete } from "@/engine/reduce";
+import { playSfx } from "@/lib/animations/audio";
+import { haptics } from "@/lib/animations/haptics";
 
 import { lastMustShow } from "./log/logFilters";
 import { LogEntryRow } from "./log/LogEntryRow";
@@ -733,6 +735,15 @@ export function DiscardToLimitDialog({
   onSubmit: (cardIds: CardId[]) => void;
 }) {
   const [selected, setSelected] = useState<Set<CardId>>(new Set());
+
+  // Gentle acknowledgment when the prompt opens — soft two-note cue + tap
+  // haptic. "You have a thing to do," not "you screwed up." See DESIGN.md
+  // motion codex (Hand overflow event). May double-fire on a WS reconnect that
+  // unmounts/remounts the dialog with the same pending state; tracked as TODO.
+  useEffect(() => {
+    playSfx("handOverflow", 0.8);
+    haptics.tap();
+  }, []);
 
   function toggle(cid: CardId) {
     setSelected((prev) => {
