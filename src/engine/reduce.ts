@@ -1598,15 +1598,19 @@ export function isComplete(group: PropertySet): boolean {
 }
 
 export function rentFor(player: Player, color: SetColor): number {
-  const group = findGroup(player, color);
-  if (!group || group.cardIds.length === 0) return 0;
-  const def = SET_DEFS[color];
-  const ladderIdx = Math.min(group.cardIds.length, def.complete) - 1;
-  const base = def.rentLadder[ladderIdx] ?? 0;
-  let rent = base;
-  if (group.hasHouse) rent += 3;
-  if (group.hasHotel) rent += 4;
-  return rent;
+  // A Deal Breaker steal into a color the actor already partially owns creates
+  // two same-color groups (placeIntoProperties appends; stolen set is pushed
+  // directly). Take the max rent across all groups of that color so the player
+  // is charged correctly after the steal, not penalized with the smaller group.
+  let best = 0;
+  for (const group of player.propertySets) {
+    if (group.color !== color || group.cardIds.length === 0) continue;
+    const def = SET_DEFS[color];
+    const ladderIdx = Math.min(group.cardIds.length, def.complete) - 1;
+    let rent = (def.rentLadder[ladderIdx] ?? 0) + (group.hasHouse ? 3 : 0) + (group.hasHotel ? 4 : 0);
+    best = Math.max(best, rent);
+  }
+  return best;
 }
 
 export function netWorth(player: Player): number {

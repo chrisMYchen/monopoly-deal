@@ -373,28 +373,38 @@ export function AnimationLayer() {
           break;
         }
         case "dealBreaker": {
-          playSfx("theft", 1.1);
-          shakeTable();
-          if (isSelfActor) haptics.success();
-          if (isSelfTarget) haptics.clash();
-          if (e.actorId && e.color) {
-            // Confetti from the thief's would-be set landing zone.
-            const r = rectOfSetGroup(e.actorId, e.color) ?? rectOfPlayerCenter(e.actorId);
-            if (r) burstFromRect(r, e.color);
-          }
-          if (e.targetId) {
-            const r = rectOfPlayerCenter(e.targetId);
-            if (r) {
-              pushOverlay({
-                ttl: 1100,
-                kind: "bigNumber",
-                text: "DEAL BREAKER!",
-                x: r.left + r.width / 2,
-                y: r.top + 4,
-                tone: "bad",
-                scale: 1.15,
-              });
+          // Two events fire under this kind:
+          //   declaration (playDealBreaker): e.cardId set, e.cardIds absent
+          //   apply (applySingleEffect):    e.cardIds set, e.cardId absent
+          // Full dramatic blast only on apply; declaration is a warning cue.
+          const isApply = !!e.cardIds;
+          if (isApply) {
+            playSfx("theft", 1.1);
+            shakeTable();
+            if (isSelfActor) haptics.success();
+            if (isSelfTarget) haptics.clash();
+            if (e.actorId && e.color) {
+              const r = rectOfSetGroup(e.actorId, e.color) ?? rectOfPlayerCenter(e.actorId);
+              if (r) burstFromRect(r, e.color);
             }
+            if (e.targetId) {
+              const r = rectOfPlayerCenter(e.targetId);
+              if (r) {
+                pushOverlay({
+                  ttl: 1100,
+                  kind: "bigNumber",
+                  text: "DEAL BREAKER!",
+                  x: r.left + r.width / 2,
+                  y: r.top + 4,
+                  tone: "bad",
+                  scale: 1.15,
+                });
+              }
+            }
+          } else {
+            // Declaration: quiet "incoming" cue so table knows it's coming
+            playSfx("theft", 0.7);
+            if (isSelfTarget) haptics.bump();
           }
           break;
         }

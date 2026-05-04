@@ -539,4 +539,73 @@ describe("PLAY_RENT", () => {
     expect(getPlayer(s, "p1").bank).toContain(m10);
     expect(s.playsRemaining).toBe(beforePlays - 2);
   });
+
+  it("charges correct complete-set rent when Deal Breaker adds a second same-color group", () => {
+    // Regression: rentFor used findGroup (first match). If the actor already
+    // has a partial orange and then steals a complete orange via Deal Breaker,
+    // they end up with two orange groups. Without this fix, rentFor would
+    // pick the smaller partial group and under-charge rent.
+    //
+    // Setup: p1 has 1/3 orange (partial). p2 has 3/3 orange (complete, via
+    // 2 solid + 1 pink/orange wild). p1 steals p2's set → two orange groups.
+    // rentFor must then pick the better (3-card complete) group → $5.
+    let s = newGame(3);
+    const dbCard = findCard((c) => c.kind === "action" && c.action === "dealBreaker");
+    const rentCard = findCard(
+      (c) =>
+        c.kind === "action" &&
+        c.action === "rent" &&
+        !c.rentSingleTarget &&
+        c.rentSets?.includes("orange") === true,
+    );
+    const oranges = allOf((c) => c.kind === "property" && c.set === "orange");
+    // orange/pink wild to complete p2's set (3rd card)
+    const orangePinkWild = findCard(
+      (c) => c.kind === "wild2" && c.sets.includes("orange") && c.sets.includes("pink"),
+    );
+    const m5 = findCard((c) => c.kind === "money" && c.value === 5);
+
+    // p1: 1 partial orange + db + rent in hand
+    s = injectHand(s, "p1", [dbCard, rentCard]);
+    s = injectPropertySets(s, "p1", [{ color: "orange", cardIds: [oranges[0]!] }]);
+    // p2: 3/3 orange (2 solid + wild), must be complete for Deal Breaker
+    s = injectPropertySets(s, "p2", [
+      { color: "orange", cardIds: [oranges[1]!, oranges[2]!, orangePinkWild] },
+    ]);
+    // p3: has $5 so they can cover the expected rent of $5 (3-card complete)
+    s = injectBank(s, "p3", [m5]);
+
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+
+    // Steal p2's complete orange set
+    s = applyAction(s, {
+      type: "PLAY_DEAL_BREAKER",
+      playerId: "p1",
+      cardId: dbCard,
+      targetPlayerId: "p2",
+      targetColor: "orange",
+      targetGroupIdx: 0,
+    });
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
+
+    // p1 now has two orange groups: [oranges[0]] (1-card) and [oranges[1], oranges[2], wild] (3-card complete)
+    const orangeGroups = getPlayer(s, "p1").propertySets.filter((g) => g.color === "orange");
+    expect(orangeGroups.length).toBe(2);
+
+    // rentFor must return the complete-set rent ($5 for orange 3/3), not $1 (1-card group)
+    expect(rentFor(getPlayer(s, "p1"), "orange")).toBe(5);
+
+    // Actually charge rent to confirm the correct amount reaches the payment dialog
+    s = applyAction(s, { type: "PLAY_RENT", playerId: "p1", cardId: rentCard, color: "orange" });
+    // p2 bankrupt after the steal
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
+    s = applyAction(s, { type: "PAY", playerId: "p2", cardIds: [] });
+    // p3's JSN window
+    expect(s.pending?.kind).toBe("awaitJustSayNo");
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p3", play: false });
+    expect(s.pending?.kind).toBe("awaitPayment");
+    if (s.pending?.kind === "awaitPayment") {
+      expect(s.pending.amountOwed).toBe(5); // complete-set rent, not 1-card rent
+    }
+  });
 });
