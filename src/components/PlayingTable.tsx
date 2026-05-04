@@ -56,6 +56,7 @@ import { PropertySetsView } from "./PropertySetsView";
 import { Toasts } from "./Toasts";
 import { PlaysPill } from "./PlaysPill";
 import { TurnTimerPill } from "./TurnTimerPill";
+import { Wordmark } from "./ui/Wordmark";
 import { colorForPlayerId } from "@/lib/playerColor";
 import { ACTION_DESCRIPTIONS, ACTION_LABELS } from "@/engine/cards";
 import { distinctCompletedSets, rentForGroup as rentForUI } from "@/engine/selectors";
@@ -750,6 +751,7 @@ function Wrapper({ state, children }: { state: ProjectedGameState; children: Rea
         data-table-root
         className="flex min-h-dvh flex-col gap-2 p-2 pb-40 sm:p-4 sm:pb-40"
       >
+        <TableChrome />
         <div className="sticky top-2 z-30 flex flex-col gap-1.5">
           <TopBanner state={state} onOpenPlayLog={openPlayLog} />
           <RecentsRibbon state={state} selfId={state.selfId} onOpen={openPlayLog} />
@@ -770,6 +772,48 @@ function Wrapper({ state, children }: { state: ProjectedGameState; children: Rea
       </main>
     </LayoutGroup>
   );
+}
+
+// Page chrome — small Wordmark + "Room ABCD · Mon May 4" ritual subline.
+// NYT Strands daily-puzzle vibe; intentionally tiny so it doesn't crowd the
+// felt panel on mobile. Not sticky — scrolls away once the cockpit takes over.
+// The whole subline is mount-gated so SSR emits empty markup and the client
+// fills it in after the Zustand store hydrates roomCode + new Date() resolves.
+// Avoids both a hydration mismatch and an aria-label flip from "Room " (empty)
+// to "Room ABCD". See DESIGN.md (Layout, Wordmark sections).
+function TableChrome() {
+  const roomCode = useGame((s) => s.roomCode);
+  const [hydrated, setHydrated] = useState(false);
+  const [dateLabel, setDateLabel] = useState<string>("");
+  useEffect(() => {
+    setDateLabel(formatRitualDate(new Date()));
+    setHydrated(true);
+  }, []);
+  const showSubline = hydrated && roomCode;
+  return (
+    <header className="flex items-baseline justify-between gap-3 px-1 pt-0.5">
+      <Wordmark size="sm" />
+      {showSubline ? (
+        <span
+          className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-faint)]"
+          aria-label={dateLabel ? `Room ${roomCode}, ${dateLabel}` : `Room ${roomCode}`}
+        >
+          Room {roomCode}
+          {dateLabel && <span className="ml-1.5">· {dateLabel}</span>}
+        </span>
+      ) : null}
+    </header>
+  );
+}
+
+// "Mon May 4" — short weekday, short month, day. Mirrors NYT Games' daily
+// puzzle date format. Locale-respecting via toLocaleDateString.
+function formatRitualDate(d: Date): string {
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function TopBanner({
