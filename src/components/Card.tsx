@@ -74,14 +74,14 @@ export function Card({
 
   const className = [
     SIZE_CLS[size],
-    // Slightly thicker border + warmer shadow so cards lift cleanly off the
-    // parchment background without losing the canon Monopoly Deal look.
-    "relative flex flex-col overflow-hidden rounded-lg border-2 border-[var(--color-ink)]/25 bg-white text-zinc-900 shadow-[0_4px_12px_-4px_rgba(15,42,46,0.25)] transition-all duration-150",
+    // Cards are the ONLY thing in the app that floats — Balatro-grade shadow
+    // + thin ink border. Sit on the felt or on white, always with depth.
+    "relative flex flex-col overflow-hidden rounded-lg border-[1.5px] border-[color-mix(in_oklab,var(--color-ink)_20%,transparent)] bg-white text-zinc-900 shadow-[var(--shadow-card)] transition-all duration-150",
     selected
-      ? "ring-2 ring-[var(--color-gold)] ring-offset-2 ring-offset-[var(--color-felt)] -translate-y-2 shadow-[0_10px_24px_-6px_rgba(224,179,65,0.55)]"
+      ? "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-felt)] -translate-y-2 shadow-[var(--shadow-card-lift)]"
       : "",
     onClick
-      ? "cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_18px_-6px_rgba(15,42,46,0.32)]"
+      ? "cursor-pointer hover:-translate-y-1 hover:shadow-[var(--shadow-card-hover)]"
       : "cursor-default",
   ].join(" ");
 
@@ -107,7 +107,7 @@ export function Card({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 4 }}
           transition={{ duration: 0.12 }}
-          className="absolute left-1/2 top-[calc(100%+6px)] z-30 w-56 -translate-x-1/2 rounded-md border border-white/20 bg-zinc-900 px-2 py-1.5 text-[11px] leading-snug text-white shadow-xl"
+          className="absolute left-1/2 top-[calc(100%+6px)] z-30 w-56 -translate-x-1/2 rounded-lg bg-[var(--color-ink)] px-3 py-2 text-[11px] leading-snug text-[var(--color-ink-on-dark)]"
           role="tooltip"
           onClick={(e) => {
             e.stopPropagation();
@@ -201,24 +201,48 @@ function renderCard(card: CardData, size: CardSize) {
 }
 
 // ---------------------------------------------------------------------------
-// Money face — bold dollar amount on a faint mint background. Mirrors the
-// look of real Monopoly Deal money cards (front: subtle pattern, big number).
+// Money face — canonical Monopoly bill colors per denomination, with corner
+// $XM repeats like real bills. Bills feel like bills, not colored rectangles.
 // ---------------------------------------------------------------------------
 
+const BILL_TINT: Record<1 | 2 | 3 | 4 | 5 | 10, string> = {
+  // Loose mapping to canonical Monopoly bill palette
+  1: "bg-[#E8DCC0] text-[#3a2c10]", // tan / cream
+  2: "bg-[#F4C4C4] text-[#5a1c1c]", // pink
+  3: "bg-[#B8D4E8] text-[#13314e]", // blue
+  4: "bg-[#C0E0C8] text-[#163d22]", // green
+  5: "bg-[#F5C896] text-[#5a2f0a]", // orange
+  10: "bg-[#F0D060] text-[#4d3a05]", // gold
+};
+
 function MoneyFace({ value }: { value: 1 | 2 | 3 | 4 | 5 | 10 }) {
-  const tint =
-    value === 10
-      ? "bg-amber-100 text-amber-900"
-      : value >= 4
-        ? "bg-emerald-100 text-emerald-900"
-        : value >= 2
-          ? "bg-sky-100 text-sky-900"
-          : "bg-zinc-100 text-zinc-700";
+  const tint = BILL_TINT[value];
   return (
-    <div className={`flex h-full w-full flex-col items-center justify-center ${tint}`}>
-      <div className="text-[0.55em] font-semibold uppercase tracking-[0.25em] opacity-60">Bank</div>
+    <div className={`relative flex h-full w-full flex-col items-center justify-center ${tint}`}>
+      {/* Inner thin border — gives the bill a real-currency frame feel */}
+      <div
+        className="pointer-events-none absolute inset-1 rounded-sm border border-current opacity-30"
+        aria-hidden
+      />
+      {/* Corner denomination repeats — like real bills */}
+      <span className="pointer-events-none absolute left-1.5 top-1 font-card text-[0.7em] tracking-tight opacity-70">
+        ${value}
+      </span>
+      <span className="pointer-events-none absolute right-1.5 top-1 font-card text-[0.7em] tracking-tight opacity-70">
+        ${value}
+      </span>
+      <span className="pointer-events-none absolute bottom-1 left-1.5 font-card text-[0.7em] tracking-tight opacity-70">
+        ${value}
+      </span>
+      <span className="pointer-events-none absolute bottom-1 right-1.5 font-card text-[0.7em] tracking-tight opacity-70">
+        ${value}
+      </span>
+      {/* Center denomination — the readable amount */}
+      <div className="text-[0.5em] font-semibold uppercase tracking-[0.25em] opacity-60">Bank</div>
       <div className="font-card text-[2.6em] leading-none tracking-tight">${value}M</div>
-      <div className="mt-1 text-[0.5em] uppercase tracking-[0.2em] opacity-50">{value} million</div>
+      <div className="mt-1 text-[0.45em] uppercase tracking-[0.22em] opacity-55">
+        {value} million
+      </div>
     </div>
   );
 }
@@ -451,38 +475,59 @@ export function CardBack({ size = "md", count }: { size?: CardSize; count?: numb
     <div
       className={[
         SIZE_CLS[size],
-        // Canon red gradient with a gold inner-border seal so the deck reads
-        // as a "premium pile" against the parchment table.
-        "relative flex flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-[#7a1d1d] bg-gradient-to-br from-[var(--color-set-red)] to-[#9a2222] text-white shadow-[0_4px_14px_-4px_rgba(15,42,46,0.4)]",
+        // Canonical Monopoly red back with diagonal stripes + the centered
+        // logotype mark. Deep ink border, Balatro-grade shadow — the deck
+        // is part of the "cards float" tactility.
+        "relative flex flex-col items-center justify-center overflow-hidden rounded-lg border-[1.5px] border-[#7a1d1d] bg-[var(--color-accent)] text-white shadow-[var(--shadow-card)]",
       ].join(" ")}
       aria-label={`Deck of ${count ?? "?"} cards`}
     >
       {/* Diagonal stripe pattern */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-20"
+        className="pointer-events-none absolute inset-0 opacity-25"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(45deg, rgba(255,255,255,0.18) 0 2px, transparent 2px 8px)",
+            "repeating-linear-gradient(45deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 8px)",
         }}
       />
-      {/* Gold inner border seal */}
-      <div
-        className="pointer-events-none absolute inset-1.5 rounded-md border border-[var(--color-gold)]/70"
-        aria-hidden
-      />
-      <div className="relative z-10 flex flex-col items-center px-1 text-center">
-        <div className="font-card text-[1.55em] uppercase leading-none tracking-tight drop-shadow">
-          Monopoly
-        </div>
-        <div className="mt-0.5 font-card text-[1.1em] uppercase leading-none tracking-[0.25em] text-[var(--color-gold)]/95">
+      {/* Centered MONOPOLY logotype mark + DEAL caption beneath */}
+      <div className="relative z-10 flex flex-col items-center gap-1 px-2 text-center">
+        <CenterMonopolyMark />
+        <div className="font-sans text-[0.65em] font-bold uppercase tracking-[0.32em] text-white">
           Deal
         </div>
       </div>
       {typeof count === "number" && (
-        <div className="relative z-10 mt-2 rounded-full bg-[var(--color-inked)]/45 px-2 py-[1px] font-mono text-[0.7em] ring-1 ring-[var(--color-gold)]/40">
+        <div className="relative z-10 mt-2 rounded-full bg-black/40 px-2 py-[1px] font-sans text-[0.65em] font-semibold tabular text-white">
           {count}
         </div>
       )}
     </div>
+  );
+}
+
+// Compact MONOPOLY mark used inside the CardBack — same visual language as
+// the full Wordmark but inlined so we avoid `useId`/SSR concerns inside a
+// component that may render hundreds of times in the discard preview.
+function CenterMonopolyMark() {
+  return (
+    <svg viewBox="0 0 100 22" className="h-[1.05em] w-auto" aria-hidden>
+      <rect width="100" height="22" rx="2" fill="#0A0A0A" />
+      <rect x="1.2" y="1.2" width="97.6" height="19.6" rx="1.6" fill="#FFFFFF" />
+      <rect x="2.6" y="2.6" width="94.8" height="16.8" rx="1.2" fill="var(--color-accent)" />
+      <text
+        x="50"
+        y="11.5"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontFamily="var(--font-sans)"
+        fontWeight="900"
+        fontSize="11"
+        letterSpacing="0.4"
+        fill="#FFFFFF"
+      >
+        MONOPOLY
+      </text>
+    </svg>
   );
 }

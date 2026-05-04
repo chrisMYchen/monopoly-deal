@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { MrMonopoly } from "./ui/MrMonopoly";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { Button } from "./ui/Button";
 import { Wordmark } from "./ui/Wordmark";
@@ -35,9 +36,9 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
   if (!isHost) {
     startHint = `Waiting for ${hostName} to start.`;
   } else if (players.length < 2) {
-    startHint = "Bring at least one friend to start.";
+    startHint = "Need at least 2 players.";
   } else if (!allOnline) {
-    startHint = "Waiting for disconnected players to come back…";
+    startHint = "Waiting for disconnected players to come back.";
   }
 
   const shareUrl =
@@ -80,20 +81,28 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-6 p-6">
       <header className="flex flex-col items-center gap-3 text-center">
         <Wordmark size="md" />
-        <p className="font-display text-base italic text-[var(--color-ink-soft)]">
-          Pull up a chair — share this code:
-        </p>
+        <p className="text-sm font-medium text-[var(--color-ink-soft)]">Share this code</p>
 
         <button
           onClick={copyCode}
           aria-label="Copy room code"
           data-testid="copy-code"
-          className="surface-paper mt-1 inline-flex items-center gap-3 rounded-2xl px-6 py-3 transition hover:translate-y-[-1px]"
+          className={[
+            "surface-paper mt-1 inline-flex items-center gap-3 rounded-2xl px-6 py-3 transition-colors",
+            copied === "code"
+              ? "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-bg)]"
+              : "hover:bg-[var(--color-tint)]",
+          ].join(" ")}
         >
-          <span className="font-mono text-4xl font-semibold tracking-[0.4em] text-[var(--color-ink)] sm:text-5xl">
+          <span className="tabular font-display text-4xl font-bold tracking-[0.32em] text-[var(--color-ink)] sm:text-5xl">
             {roomCode}
           </span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
+          <span
+            className={[
+              "text-[10px] font-semibold uppercase tracking-[0.18em]",
+              copied === "code" ? "text-[var(--color-accent)]" : "text-[var(--color-ink-soft)]",
+            ].join(" ")}
+          >
             {copied === "code" ? "copied!" : "tap to copy"}
           </span>
         </button>
@@ -133,30 +142,26 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
                 key={p.id}
                 data-testid="lobby-player"
                 className={[
-                  "surface-paper flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5",
-                  isSelf
-                    ? "ring-2 ring-[var(--color-accent)]/60 ring-offset-2 ring-offset-[var(--color-bg)]"
-                    : "",
+                  "surface-paper relative flex items-center justify-between gap-3 overflow-hidden rounded-2xl px-4 py-2.5",
                 ].join(" ")}
               >
-                <span className="flex items-center gap-2.5 font-medium text-[var(--color-ink)]">
+                {/* Active turn (or self) red left bar */}
+                {isSelf && (
                   <span
-                    className={
-                      isHostRow
-                        ? "rounded-full ring-2 ring-[var(--color-gold)] ring-offset-2 ring-offset-[var(--color-paper)]"
-                        : ""
-                    }
-                  >
-                    <PlayerAvatar id={p.id} name={p.name} />
-                  </span>
+                    aria-hidden
+                    className="absolute inset-y-0 left-0 w-1 bg-[var(--color-accent)]"
+                  />
+                )}
+                <span className="flex items-center gap-2.5 font-medium text-[var(--color-ink)]">
+                  <PlayerAvatar id={p.id} name={p.name} />
                   <span>{p.name}</span>
                   {isSelf && (
-                    <span className="rounded-full bg-[var(--color-bg-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
+                    <span className="rounded-full bg-[var(--color-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
                       you
                     </span>
                   )}
                   {isHostRow && (
-                    <span className="rounded-full bg-[var(--color-gold)]/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-gold-deep)]">
+                    <span className="rounded-full bg-[var(--color-accent-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-accent-deep)]">
                       host
                     </span>
                   )}
@@ -164,14 +169,14 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
                 <span
                   className={[
                     "flex items-center gap-1.5 text-xs font-medium",
-                    p.connected ? "text-[var(--color-mint)]" : "text-[var(--color-accent)]",
+                    p.connected ? "text-[var(--color-success)]" : "text-[var(--color-accent)]",
                   ].join(" ")}
                 >
                   <span
                     aria-hidden
                     className={[
                       "inline-block h-2 w-2 rounded-full",
-                      p.connected ? "bg-[var(--color-mint)]" : "bg-[var(--color-accent)]",
+                      p.connected ? "bg-[var(--color-success)]" : "bg-[var(--color-accent)]",
                     ].join(" ")}
                   />
                   {p.connected ? "online" : "offline"}
@@ -180,9 +185,13 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
             );
           })}
           {players.length < 5 && (
-            <li className="surface-tint flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm italic text-[var(--color-ink-soft)]">
-              <span aria-hidden>🪑</span>
-              Waiting for someone to sit down…
+            <li className="surface-tint flex flex-col items-center justify-center gap-2 rounded-2xl px-4 py-5 text-sm text-[var(--color-ink-soft)]">
+              <MrMonopoly
+                variant="standing"
+                size={48}
+                className="text-[var(--color-ink-faint)]"
+              />
+              <span>Waiting for players</span>
             </li>
           )}
         </ul>
@@ -216,11 +225,11 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
             Start game
           </Button>
           {!canStart && (
-            <p className="text-sm italic text-[var(--color-ink-soft)]">{startHint}</p>
+            <p className="text-sm font-medium text-[var(--color-ink-soft)]">{startHint}</p>
           )}
         </div>
       ) : (
-        <p className="text-sm italic text-[var(--color-ink-soft)]">{startHint}</p>
+        <p className="text-sm font-medium text-[var(--color-ink-soft)]">{startHint}</p>
       )}
 
       <details className="mt-1 w-full text-sm text-[var(--color-ink)]">
@@ -237,9 +246,9 @@ export function Lobby({ client, onStart }: { client: WsClient; onStart: () => vo
             cards → end your turn. End-of-turn hand limit is 7.
           </p>
           <p>
-            Cards can be played as <em>property</em> (laid down in front of you), as <em>money</em>{" "}
-            (into your bank, sideways), or for their <em>action</em> effect. Wild cards must join
-            an existing same-color group; rainbow wilds need at least one solid card with them.
+            Cards can be played as a property (laid down in front of you), as money (into your
+            bank, sideways), or for their action effect. Wild cards must join an existing
+            same-color group; rainbow wilds need at least one solid card with them.
           </p>
         </div>
       </details>
@@ -268,7 +277,7 @@ function TurnTimerSetting({
         data-testid="turn-timer-setting"
       >
         <span className="text-[var(--color-ink-soft)]">Turn timer</span>
-        <span className="font-mono font-semibold text-[var(--color-ink)]" data-testid="turn-timer-value">
+        <span className="tabular font-semibold text-[var(--color-ink)]" data-testid="turn-timer-value">
           {labelFor(currentValue)}
         </span>
       </section>
@@ -283,14 +292,14 @@ function TurnTimerSetting({
     >
       <div className="flex items-center justify-between text-sm">
         <span className="font-semibold text-[var(--color-ink)]">Turn timer</span>
-        <span className="text-xs italic text-[var(--color-ink-soft)]">
+        <span className="tabular text-xs text-[var(--color-ink-soft)]">
           {labelFor(currentValue)}
         </span>
       </div>
       <div
         role="radiogroup"
         aria-label="Turn timer"
-        className="surface-tint flex gap-1 rounded-full p-1"
+        className="flex gap-1 rounded-full bg-[var(--color-tint)] p-1"
         data-testid="turn-timer-select"
       >
         {TIMER_OPTIONS.map((opt) => {
@@ -303,10 +312,10 @@ function TurnTimerSetting({
               aria-checked={active}
               onClick={() => onChange(opt.value)}
               className={[
-                "flex-1 rounded-full px-2 py-1.5 text-sm font-semibold transition",
+                "flex-1 rounded-full px-2 py-1.5 text-sm font-semibold transition-colors",
                 active
-                  ? "bg-[var(--color-inked)] text-[var(--color-ink-inverse)] shadow-sm"
-                  : "text-[var(--color-ink-soft)] hover:bg-[var(--color-paper)]",
+                  ? "bg-[var(--color-accent)] text-[var(--color-ink-on-dark)]"
+                  : "text-[var(--color-ink-soft)] hover:bg-[var(--color-card)]",
               ].join(" ")}
             >
               {opt.label}

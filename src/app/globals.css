@@ -2,33 +2,32 @@
 
 @theme {
   /* ==========================================================================
-   * Surfaces — the four-layer system
-   *   parchment "room"  →  inked chrome  →  felt "table"  →  paper "cards"
+   * Surfaces — NYT-clean canvas + Balatro felt only inside the game area.
+   *   white "room"  →  flat panels  →  felt "table" (game only)
    * ========================================================================== */
-  --color-bg:           #FAF4E8;  /* parchment — body */
-  --color-bg-tint:      #F2E9D2;  /* darker parchment — recessed wells */
-  --color-paper:        #FFFFFF;  /* elevated card / chip surface */
-  --color-paper-warm:   #FDF8EE;  /* slightly warm paper for variety */
-  --color-inked:        #0F2A2E;  /* deep teal — chrome / nav / dark panels */
-  --color-inked-soft:   #1B3A3F;  /* deep teal raised */
-  --color-felt:         #2A6B53;  /* lush green — game table area */
-  --color-felt-rim:     #1C4A3A;  /* deeper for vignette edge */
+  --color-bg:           #FAFAF7;  /* warm near-white — body */
+  --color-card:         #FFFFFF;  /* paper / panels */
+  --color-tint:         #F2F1EC;  /* recessed wells (segmented controls, log strips) */
+  --color-felt:         #1B5E40;  /* deep card-table green — game area only */
+  --color-felt-edge:    #134730;  /* felt rim shadow */
 
-  /* Ink — text & icons. Names describe usage, not value. */
-  --color-ink:          #0F2A2E;  /* primary text on light */
-  --color-ink-soft:     #4F5D5A;  /* secondary text on light */
-  --color-ink-faint:    #8A9492;  /* tertiary / metadata */
-  --color-ink-inverse:  #FAF4E8;  /* primary text on dark/teal */
+  /* Ink — text & icons */
+  --color-ink:          #111111;
+  --color-ink-soft:     #5A5A5A;
+  --color-ink-faint:    #9A9A9A;
+  --color-ink-on-dark:  #FFFFFF;
 
-  /* Brand accents */
-  --color-accent:       #C8531A;  /* warm coral-red — primary CTA */
-  --color-accent-hot:   #E16538;  /* hover lift */
-  --color-gold:         #E0B341;  /* secondary accent — gold seal, win */
-  --color-gold-deep:    #B58A28;
-  --color-mint:         #2F8F70;  /* confirmations, "your turn" */
+  /* Brand — single accent */
+  --color-accent:       #D9242A;  /* canonical Monopoly red */
+  --color-accent-deep:  #B61F23;  /* hover / press */
+  --color-accent-tint:  #FCE6E7;  /* very soft red wash */
 
-  /* Property set colors (lifted from the previous palette for parchment
-   * contrast — pinks, lights, yellows, utilities all picked up vibrance) */
+  /* Functional */
+  --color-success:      #1F7A4D;  /* deep green confirms (NOT the felt) */
+  --color-warning:      #B58A00;
+
+  /* Property set colors — KEEP CANON. The vibrant rent-color bands carry
+   * half the Monopoly identity; do not touch. */
   --color-set-brown:       #8B5A2B;
   --color-set-light-blue:  #6FB6D9;
   --color-set-pink:        #D9568F;
@@ -40,7 +39,7 @@
   --color-set-railroad:    #1F1F1F;
   --color-set-utility:     #B0C436;
 
-  /* Action card backgrounds — kept; already vibrant + canon-faithful. */
+  /* Action card backgrounds — KEEP CANON. */
   --color-action-deal-breaker:   #f5b400;
   --color-action-just-say-no:    #d93030;
   --color-action-sly-deal:       #2a89c5;
@@ -53,31 +52,22 @@
   --color-action-pass-go:        #d93030;
   --color-action-rent:           #d4a017;
 
-  /* Legacy aliases (kept until call sites migrate; safe to remove once
-   * the radial body bg references are gone). */
-  --color-table-rim:    #4a3320;
-
   /* Typography */
-  --font-display: "Fraunces", "Recoleta", ui-serif, Georgia, serif;
-  --font-sans:    "Inter Tight", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Source Serif 4", "Source Serif Pro", ui-serif, Georgia, serif;
+  --font-sans:    "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-card:    "Anton", "Oswald", ui-sans-serif, sans-serif;
-  --font-mono:    "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
 /* ============================================================================
- * Tactile shadows — defined outside @theme since they reference other tokens.
+ * Card shadows — the ONE place tactility lives. Cards are the only thing in
+ * the app that gets a real drop shadow (Balatro discipline).
  * ============================================================================ */
 :root {
-  --shadow-sticker:    0 2px 0 0 var(--color-ink), 0 6px 18px -4px rgba(15, 42, 46, 0.18);
-  --shadow-sticker-sm: 0 1.5px 0 0 var(--color-ink), 0 3px 10px -3px rgba(15, 42, 46, 0.18);
-  --shadow-press:      0 1px 0 0 var(--color-ink), 0 2px 4px -1px rgba(15, 42, 46, 0.2);
-  --shadow-paper:      0 4px 24px -8px rgba(15, 42, 46, 0.22);
-  --shadow-paper-sm:   0 2px 8px -2px rgba(15, 42, 46, 0.18);
-  --shadow-paper-lift: 0 8px 36px -10px rgba(15, 42, 46, 0.28);
-
-  /* Static SVG paper-grain noise — single tile, repeats. ~1.5KB encoded.
-   * Two octaves of fractal noise with low opacity so it reads as fiber, not dirt. */
-  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch' seed='7'/><feColorMatrix values='0 0 0 0 0.06   0 0 0 0 0.16   0 0 0 0 0.18   0 0 0 0.32 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>");
+  --shadow-card:        0 8px 16px -6px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover:  0 14px 24px -8px rgba(0, 0, 0, 0.4);
+  --shadow-card-lift:   0 18px 32px -10px rgba(0, 0, 0, 0.45);
+  --shadow-felt-rim:    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+                        inset 0 2px 10px 0 rgba(0, 0, 0, 0.3);
 }
 
 html,
@@ -90,90 +80,34 @@ body {
 
 body {
   min-height: 100dvh;
-  /* Parchment "room": warm cream base, soft gold-toned vignette in the corners,
-   * static paper grain overlay. No animation, no JS, no image asset. */
-  background:
-    var(--paper-grain),
-    radial-gradient(
-      ellipse at 15% 0%,
-      color-mix(in oklab, var(--color-gold) 14%, transparent) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse at 85% 100%,
-      color-mix(in oklab, var(--color-accent) 10%, transparent) 0%,
-      transparent 55%
-    ),
-    radial-gradient(
-      ellipse at 50% 35%,
-      color-mix(in oklab, var(--color-bg) 95%, white) 0%,
-      var(--color-bg) 60%,
-      var(--color-bg-tint) 100%
-    );
-  background-attachment: fixed;
+  /* NYT-clean canvas: solid warm-white. No gradient, no grain, no vignette. */
+  background: var(--color-bg);
 }
 
 /* ============================================================================
- * Surface utilities — apply to any element to take on a consistent treatment.
+ * Surface utilities — flat treatments, no shadows on chrome.
  * ============================================================================ */
 .surface-paper {
-  background: var(--color-paper);
+  background: var(--color-card);
   color: var(--color-ink);
-  box-shadow: var(--shadow-paper);
-  border: 1px solid color-mix(in oklab, var(--color-ink) 8%, transparent);
-}
-
-.surface-paper-warm {
-  background: var(--color-paper-warm);
-  color: var(--color-ink);
-  box-shadow: var(--shadow-paper-sm);
-  border: 1px solid color-mix(in oklab, var(--color-ink) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-ink) 12%, transparent);
 }
 
 .surface-tint {
-  background: var(--color-bg-tint);
+  background: var(--color-tint);
   color: var(--color-ink);
-  border: 1px solid color-mix(in oklab, var(--color-ink) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-ink) 10%, transparent);
 }
 
 .surface-inked {
-  background: var(--color-inked);
-  color: var(--color-ink-inverse);
-  border: 1px solid color-mix(in oklab, var(--color-ink-inverse) 12%, transparent);
-}
-
-.surface-inked-soft {
-  background: var(--color-inked-soft);
-  color: var(--color-ink-inverse);
-  border: 1px solid color-mix(in oklab, var(--color-ink-inverse) 14%, transparent);
+  background: var(--color-felt);
+  color: var(--color-ink-on-dark);
 }
 
 .surface-felt {
-  background:
-    var(--paper-grain),
-    radial-gradient(
-      ellipse at 50% 35%,
-      color-mix(in oklab, var(--color-felt) 90%, white) 0%,
-      var(--color-felt) 55%,
-      var(--color-felt-rim) 100%
-    );
-  color: var(--color-ink-inverse);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, #000 30%, transparent),
-              inset 0 2px 12px 0 rgba(0, 0, 0, 0.25);
-}
-
-/* Tactile button — used by <Button> */
-.btn-sticker {
-  box-shadow: var(--shadow-sticker);
-  transition: transform 80ms ease, box-shadow 80ms ease, background 120ms ease;
-}
-.btn-sticker:active {
-  box-shadow: var(--shadow-press);
-  transform: translateY(2px);
-}
-.btn-sticker:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
+  background: var(--color-felt);
+  color: var(--color-ink-on-dark);
+  box-shadow: var(--shadow-felt-rim);
 }
 
 .font-display {
@@ -187,20 +121,25 @@ body {
   font-weight: 400;
 }
 
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ============================================================================
- * Animations (carryover from the game-feel pass).
+ * Animations — retuned for the editorial palette.
+ *   - "Your turn" pulse: thin red bottom-border (replaces gold glow)
+ *   - Set complete: red ring flash (replaces gold)
+ *   - Turn glow: red glow on next player chip (replaces gold)
  * ============================================================================ */
 
-/* Soft pulse for "your turn" banner. Now mint-on-deep-teal so it pops on the
- * inked chrome without competing with gold accents. */
+/* Your-turn pulse on the TopBanner. Now a thin red bottom border that
+ * pulses opacity rather than a gold glow. Reads quiet but persistent. */
 @keyframes rr-pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(47, 143, 112, 0);
-    border-color: rgba(47, 143, 112, 0.45);
+    box-shadow: inset 0 -2px 0 0 rgba(217, 36, 42, 0.3);
   }
   50% {
-    box-shadow: 0 0 22px 0 rgba(47, 143, 112, 0.32);
-    border-color: rgba(47, 143, 112, 0.85);
+    box-shadow: inset 0 -2px 0 0 rgba(217, 36, 42, 0.95);
   }
 }
 
@@ -217,24 +156,25 @@ body {
   animation: rr-edge-pulse-glow 0.8s ease-in-out infinite;
 }
 
-/* Set-complete: gold-on-felt now reads richer than gold-on-zinc. */
+/* Set-complete: red ring expansion + brief lift. Reads punchy on white
+ * and on felt without competing with confetti. */
 @keyframes rr-set-complete-glow {
   0% {
     box-shadow:
-      0 0 0 0 rgba(224, 179, 65, 0),
+      0 0 0 0 rgba(217, 36, 42, 0),
       0 0 0 0 rgba(255, 255, 255, 0);
     transform: scale(1);
   }
   20% {
     box-shadow:
-      0 0 0 6px rgba(224, 179, 65, 0.6),
-      0 0 24px 4px rgba(255, 255, 255, 0.55);
+      0 0 0 6px rgba(217, 36, 42, 0.65),
+      0 0 24px 4px rgba(255, 255, 255, 0.45);
     transform: scale(1.04);
   }
   100% {
     box-shadow:
-      0 0 0 14px rgba(224, 179, 65, 0),
-      0 0 36px 8px rgba(224, 179, 65, 0);
+      0 0 0 14px rgba(217, 36, 42, 0),
+      0 0 36px 8px rgba(217, 36, 42, 0);
     transform: scale(1);
   }
 }
@@ -269,46 +209,26 @@ body {
   transform-origin: center;
 }
 
+/* Turn glow: red flare on the next player's chip. Single cycle. */
 @keyframes rr-turn-glow-keys {
-  0%   { box-shadow: 0 0 0 0 rgba(224, 179, 65, 0); }
-  35%  { box-shadow: 0 0 22px 6px rgba(224, 179, 65, 0.6); }
-  100% { box-shadow: 0 0 0 0 rgba(224, 179, 65, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(217, 36, 42, 0); }
+  35%  { box-shadow: 0 0 22px 6px rgba(217, 36, 42, 0.55); }
+  100% { box-shadow: 0 0 0 0 rgba(217, 36, 42, 0); }
 }
 
 .rr-turn-glow {
   animation: rr-turn-glow-keys 0.95s ease-out 1;
 }
 
+/* Cool sweep on the previous player's chip when their turn ends. */
 @keyframes rr-turn-end-sweep-keys {
-  0%   { box-shadow: 0 0 0 0 rgba(148, 163, 184, 0); }
-  40%  { box-shadow: 0 0 16px 4px rgba(148, 163, 184, 0.45); }
-  100% { box-shadow: 0 0 0 0 rgba(148, 163, 184, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(90, 90, 90, 0); }
+  40%  { box-shadow: 0 0 16px 4px rgba(90, 90, 90, 0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(90, 90, 90, 0); }
 }
 
 .rr-turn-end-sweep {
   animation: rr-turn-end-sweep-keys 0.65s ease-out 1;
-}
-
-/* Subtle gold-foil shimmer for the win headline on ResultsScreen. */
-@keyframes rr-foil-shimmer {
-  0%   { background-position: -150% 50%; }
-  100% { background-position: 250% 50%; }
-}
-
-.rr-foil {
-  background-image: linear-gradient(
-    100deg,
-    var(--color-gold-deep) 0%,
-    var(--color-gold) 30%,
-    #FFF6CF 50%,
-    var(--color-gold) 70%,
-    var(--color-gold-deep) 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: rr-foil-shimmer 3.2s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -318,14 +238,7 @@ body {
   .rr-shake,
   .rr-count-pulse,
   .rr-turn-glow,
-  .rr-turn-end-sweep,
-  .rr-foil {
+  .rr-turn-end-sweep {
     animation: none;
-  }
-  .btn-sticker {
-    transition: none;
-  }
-  .btn-sticker:active {
-    transform: none;
   }
 }

@@ -15,14 +15,14 @@ export function HelpButton() {
         onClick={() => setOpen(true)}
         aria-label="Open rules summary"
         title="Rules summary"
-        className="surface-inked btn-sticker fixed bottom-20 right-2 z-20 flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold"
+        className="fixed bottom-20 right-2 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-felt)] text-lg font-bold text-[var(--color-ink-on-dark)] transition-colors hover:bg-[var(--color-felt-edge)]"
         data-testid="help-button"
       >
         ?
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex flex-col justify-end bg-[var(--color-inked)]/55 backdrop-blur-sm sm:items-center sm:justify-center sm:p-8"
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-[var(--color-felt)]/55 backdrop-blur-sm sm:items-center sm:justify-center sm:p-8"
           role="dialog"
           aria-modal="true"
           aria-label="Rules summary"
@@ -38,7 +38,7 @@ export function HelpButton() {
               </h3>
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-full px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-bg-tint)] hover:text-[var(--color-ink)]"
+                className="rounded-full px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-tint)] hover:text-[var(--color-ink)]"
               >
                 Close
               </button>

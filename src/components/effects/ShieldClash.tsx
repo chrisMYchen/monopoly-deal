@@ -9,14 +9,14 @@ export type ShieldClashProps = {
   // Center px in viewport. Defaults to viewport center.
   x?: number;
   y?: number;
-  // "block" tone (defender wins) — yellow.
-  // "fail" tone (action canceled by opponent's JSN) — red.
+  // "block" tone (JSN successfully countered an action) — success green.
+  // "fail" tone (action canceled by opponent's JSN) — accent red.
   tone?: "block" | "fail";
 };
 
 export function ShieldClash({ x, y, tone = "block" }: ShieldClashProps) {
-  const fill = tone === "block" ? "#facc15" : "#f43f5e";
-  const stroke = tone === "block" ? "#fde68a" : "#fda4af";
+  const fill = tone === "block" ? "#1F7A4D" : "#D9242A"; // --color-success / --color-accent
+  const stroke = tone === "block" ? "#94CFAF" : "#FCA5A8";
   const cx = x ?? (typeof window !== "undefined" ? window.innerWidth / 2 : 0);
   const cy = y ?? (typeof window !== "undefined" ? window.innerHeight / 2 : 0);
   return (

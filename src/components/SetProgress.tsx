@@ -16,12 +16,12 @@ export function SetProgress({
   return (
     <span
       className={[
-        "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-widest",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]",
         highlight && count >= 2
-          ? "bg-red-500/30 text-red-100" // 2/3 = serious threat
+          ? "bg-[var(--color-accent-tint)] text-[var(--color-accent-deep)]" // 2/3 = stakes
           : highlight
-            ? "bg-yellow-300/20 text-yellow-100"
-            : "bg-white/10 opacity-80",
+            ? "bg-[var(--color-tint)] text-[var(--color-ink-soft)]"
+            : "bg-[var(--color-tint)] text-[var(--color-ink-faint)]",
       ].join(" ")}
       title={`${count} of 3 distinct-color complete sets toward winning`}
       aria-label={`${count} of 3 sets toward winning`}

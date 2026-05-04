@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, Fraunces, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { Anton, Inter, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
 // Card titles only — canon-faithful condensed caps for property + action
-// names. Kept from before; the rest of the type system has moved on.
+// names. Kept across redesigns; the canon stays.
 const card = Anton({
   weight: "400",
   subsets: ["latin"],
@@ -11,46 +11,43 @@ const card = Anton({
   display: "swap",
 });
 
-// Display: Fraunces (variable serif w/ optical sizing). Used for screen
-// headlines, the wordmark, and dialog titles. Carries the brand's voice.
-const display = Fraunces({
+// Display: Source Serif 4 (variable serif with optical sizing). Used for
+// screen headlines, the wordmark "Deal", dialog titles, lobby code. Bold
+// editorial weight, NO italics anywhere in the UI.
+const display = Source_Serif_4({
   subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
   variable: "--font-display",
   display: "swap",
-  axes: ["opsz", "SOFT", "WONK"],
 });
 
-// Body UI font. Inter Tight reads slightly chunkier + warmer than Inter.
-const sans = Inter_Tight({
+// Body UI font. Plain Inter at default weights — quiet, neutral, NYT-clean.
+const sans = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
-  display: "swap",
-});
-
-// Mono — used for dense numerics (room codes, $XM, hand counts).
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Monopoly Deal",
   description: "A friendly card game of property, rent, and ruthless trades.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#FAF4E8",
+  themeColor: "#FAFAF7",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${display.variable} ${sans.variable} ${card.variable} ${mono.variable}`}
+      className={`${display.variable} ${sans.variable} ${card.variable}`}
     >
       <body>{children}</body>
     </html>

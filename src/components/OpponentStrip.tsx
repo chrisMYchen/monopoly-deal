@@ -67,49 +67,49 @@ export function OpponentStrip({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <PlayerAvatar id={p.id} name={p.name} size="sm" />
-                  <span className="font-semibold">{p.name}</span>
+                  <span className="font-semibold text-[var(--color-ink)]">{p.name}</span>
                   {isActive && (
-                    <span className="rounded bg-yellow-300/30 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-yellow-100">
+                    <span className="rounded-full bg-[var(--color-accent-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-accent-deep)]">
                       their turn
                     </span>
                   )}
                   {!p.connected && (
-                    <span className="rounded bg-red-500/30 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-red-100">
+                    <span className="rounded-full bg-[var(--color-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
                       offline
                     </span>
                   )}
                   <SetProgress count={completedSets} highlight />
                 </div>
-                <div className="flex items-center gap-2 text-xs opacity-80">
+                <div className="flex items-center gap-2 text-xs text-[var(--color-ink-soft)]">
                   <span className="flex items-center gap-1">
                     <span aria-hidden>🂠</span>
-                    <span className="font-mono" data-hand-count={p.id}>
+                    <span className="tabular font-semibold" data-hand-count={p.id}>
                       {p.handCount}
                     </span>
                   </span>
-                  <span className="font-mono">${bankTotal}M</span>
+                  <span className="tabular font-semibold">${bankTotal}M</span>
                 </div>
               </div>
 
               {/* Mobile: compact set chips. Tap card to expand. */}
               <div className="flex flex-wrap gap-1 sm:hidden">
                 {p.propertySets.length === 0 ? (
-                  <span className="text-[10px] opacity-50">no properties</span>
+                  <span className="text-[10px] text-[var(--color-ink-faint)]">no properties</span>
                 ) : (
                   p.propertySets.map((g, gi) => (
                     <SetChip key={`${g.color}-${gi}`} color={g.color} count={g.cardIds.length} hasHouse={g.hasHouse} hasHotel={g.hasHotel} />
                   ))
                 )}
                 {p.propertySets.length > 0 && (
-                  <span className="text-[10px] opacity-50">tap to view</span>
+                  <span className="text-[10px] text-[var(--color-ink-faint)]">tap to view</span>
                 )}
               </div>
 
               {/* Desktop: full property view with property cards. */}
               <div className="hidden sm:block">
-                <div className="flex items-center gap-2 text-xs opacity-80">
+                <div className="flex items-center gap-2 text-xs text-[var(--color-ink-soft)]">
                   <CardBack size="sm" count={p.handCount} />
-                  <span className="font-mono">${bankTotal}M</span>
+                  <span className="tabular font-semibold">${bankTotal}M</span>
                 </div>
                 <div className="mt-2">
                   <PropertySetsView
@@ -173,20 +173,27 @@ function OpponentChip({
       data-player-id={playerId}
       data-player-chip={playerId}
       className={[
-        "flex flex-col gap-2 rounded-md border p-2 text-left transition",
+        "surface-paper relative flex flex-col gap-2 overflow-hidden rounded-2xl p-2.5 text-left transition-colors",
         "w-full sm:w-fit sm:min-w-[180px]",
         isActive
-          ? "border-yellow-300/70 bg-yellow-300/5"
+          ? "ring-2 ring-[var(--color-accent)]"
           : isThreat
-            ? "border-red-400/60 bg-white/5"
-            : `${color.border} ${color.bg}`,
+            ? "ring-1 ring-[var(--color-accent)]/45"
+            : "",
         targetMode
-          ? "cursor-pointer hover:border-pink-300/70 hover:bg-pink-300/10"
-          : "cursor-pointer hover:bg-white/5 sm:cursor-default",
-        isOver ? "ring-2 ring-pink-400/80 ring-offset-2 ring-offset-zinc-900" : "",
-        !connected ? "opacity-40" : "",
+          ? "cursor-pointer hover:bg-[var(--color-accent-tint)]"
+          : "cursor-pointer hover:bg-[var(--color-tint)] sm:cursor-default",
+        isOver ? "ring-2 ring-[var(--color-accent)]" : "",
+        !connected ? "opacity-50" : "",
       ].join(" ")}
     >
+      {/* Active turn red left bar */}
+      {isActive && (
+        <span
+          aria-hidden
+          className="absolute inset-y-0 left-0 w-1 bg-[var(--color-accent)]"
+        />
+      )}
       {children}
     </button>
   );
@@ -209,8 +216,10 @@ function SetChip({
   return (
     <span
       className={[
-        "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
-        complete ? "border-yellow-300/60 bg-yellow-300/10" : "border-white/15",
+        "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] text-[var(--color-ink)]",
+        complete
+          ? "border-[var(--color-accent)]/55 bg-[var(--color-accent-tint)]"
+          : "border-[var(--color-ink)]/15 bg-[var(--color-card)]",
       ].join(" ")}
       style={{
         borderLeftWidth: 6,
@@ -218,8 +227,8 @@ function SetChip({
       }}
       title={`${color} ${count}/${SET_DEFS[color].complete}${hasHouse ? " · house" : ""}${hasHotel ? " · hotel" : ""}`}
     >
-      <span className="capitalize">{color}</span>
-      <span className="font-mono opacity-70">
+      <span className="capitalize font-medium">{color}</span>
+      <span className="tabular font-semibold text-[var(--color-ink-soft)]">
         {count}/{SET_DEFS[color].complete}
       </span>
       {hasHouse && <span aria-hidden>🏠</span>}
@@ -243,42 +252,42 @@ function OpponentDetailSheet({
   const bankTotal = opponent.bank.reduce((s, cid) => s + bankValueOf(cardById(cid)), 0);
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col justify-end bg-black/50 sm:items-center sm:justify-center sm:p-8"
+      className="fixed inset-0 z-40 flex flex-col justify-end bg-[var(--color-ink)]/45 backdrop-blur-sm sm:items-center sm:justify-center sm:p-8"
       role="dialog"
       aria-modal="true"
       aria-label={`${opponent.name} details`}
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full overflow-y-auto rounded-t-xl border border-white/15 bg-zinc-900 p-4 shadow-2xl sm:max-w-2xl sm:rounded-xl"
+        className="surface-paper max-h-[80vh] w-full overflow-y-auto rounded-t-3xl p-5 sm:max-w-2xl sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold">{opponent.name}</h3>
+            <h3 className="font-display text-xl font-semibold text-[var(--color-ink)]">{opponent.name}</h3>
             <SetProgress count={distinctCompletedSets(opponent)} highlight />
           </div>
           <button
             onClick={onClose}
-            className="rounded px-2 py-1 text-sm opacity-70 hover:bg-white/10 hover:opacity-100"
+            className="rounded-full px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-tint)] hover:text-[var(--color-ink)]"
           >
             Close
           </button>
         </div>
-        <div className="mb-3 text-xs opacity-70">
+        <div className="mb-3 text-xs text-[var(--color-ink-soft)]">
           🂠 {opponent.handCount} cards in hand · Bank ${bankTotal}M
         </div>
         <section className="mb-3">
-          <h4 className="mb-1 text-xs uppercase tracking-widest opacity-60">Properties</h4>
+          <h4 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">Properties</h4>
           {opponent.propertySets.length === 0 ? (
-            <div className="text-xs opacity-50">no properties</div>
+            <div className="text-xs text-[var(--color-ink-faint)]">no properties</div>
           ) : (
             <PropertySetsView propertySets={opponent.propertySets} compact flashingCardIds={flashingCardIds} playerId={opponent.id} />
           )}
         </section>
         {opponent.bank.length > 0 && (
           <section>
-            <h4 className="mb-1 text-xs uppercase tracking-widest opacity-60">Bank</h4>
+            <h4 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">Bank</h4>
             <div className="flex flex-wrap gap-1">
               {opponent.bank.map((cid) => (
                 <Card key={cid} cardId={cid} size="sm" animated={false} />

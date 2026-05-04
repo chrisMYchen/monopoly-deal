@@ -36,6 +36,9 @@ export function FxToggles() {
     });
   }, []);
 
+  // Toggles sit inside the TopBanner (felt panel) — light-on-dark.
+  const baseCls =
+    "rounded-full bg-white/10 px-2 py-1 text-[11px] transition-colors hover:bg-white/20";
   return (
     <div className="flex items-center gap-1">
       <button
@@ -44,7 +47,7 @@ export function FxToggles() {
         title={muted ? "Sound off — tap to enable" : "Sound on — tap to mute"}
         aria-label={muted ? "Enable sound" : "Mute sound"}
         aria-pressed={!muted}
-        className="rounded-full border border-white/15 px-1.5 py-0.5 text-[11px] opacity-80 transition hover:bg-white/10 hover:opacity-100"
+        className={[baseCls, muted ? "opacity-50" : ""].join(" ")}
       >
         {muted ? "🔇" : "🔊"}
       </button>
@@ -55,10 +58,7 @@ export function FxToggles() {
           title={hapticOff ? "Haptics off — tap to enable" : "Haptics on — tap to disable"}
           aria-label={hapticOff ? "Enable haptics" : "Disable haptics"}
           aria-pressed={!hapticOff}
-          className={[
-            "rounded-full border border-white/15 px-1.5 py-0.5 text-[11px] transition hover:bg-white/10",
-            hapticOff ? "opacity-40 line-through" : "opacity-80 hover:opacity-100",
-          ].join(" ")}
+          className={[baseCls, hapticOff ? "opacity-50 line-through" : ""].join(" ")}
         >
           📳
           <span className="sr-only">{hapticOff ? "Haptics off" : "Haptics on"}</span>

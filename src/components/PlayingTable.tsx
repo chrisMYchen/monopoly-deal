@@ -945,7 +945,7 @@ function Center({ state }: { state: ProjectedGameState }) {
         {/* Reshuffle warning when deck is almost empty — fair info for everyone. */}
         {state.drawPileCount > 0 && state.drawPileCount <= 5 && (
           <div
-            className="rounded bg-amber-300/20 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-amber-100"
+            className="rounded-full bg-[var(--color-warning)]/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white"
             title="Discard reshuffles into the draw pile when this empties"
           >
             🔄 reshuffle next
@@ -995,15 +995,21 @@ function SelfArea({
       data-player-id={self.id}
       data-player-chip={self.id}
       className={[
-        "mt-auto flex flex-col gap-2 rounded-md border p-2 transition",
-        isMyTurn ? "border-yellow-300/50 bg-yellow-300/5" : `${colorForPlayerId(self.id).border} ${colorForPlayerId(self.id).bg}`,
+        "mt-auto flex flex-col gap-2 rounded-md border p-2 transition-colors",
+        isMyTurn
+          ? "border-[var(--color-accent)] bg-[var(--color-accent)]/8"
+          : "border-white/15 bg-white/5",
       ].join(" ")}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex flex-wrap items-center gap-2 font-semibold">
-          <PlayerAvatar id={self.id} name={self.name} size="sm" />
+          <PlayerAvatar id={self.id} name={self.name} size="sm" onDark />
           You — {self.name}
-          {isMyTurn && <span className="text-yellow-300">(your turn)</span>}
+          {isMyTurn && (
+            <span className="rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-ink-on-dark)]">
+              your turn
+            </span>
+          )}
           <SetProgress count={completedSets} highlight />
         </h2>
         <div className="flex items-center gap-2 text-xs opacity-70">
@@ -1152,7 +1158,7 @@ function ActionBar({
     const playsLeft = state.playsRemaining;
     return (
       <BarShell>
-        <p className="flex-1 self-center text-sm text-[var(--color-ink-inverse)]/80">
+        <p className="flex-1 self-center text-sm text-[var(--color-ink-on-dark)]/80">
           Tap a card in your hand to play, or end your turn.
         </p>
         <EndTurnButton playsLeft={playsLeft} onEndTurn={onEndTurn} />
@@ -1189,8 +1195,8 @@ function EndTurnButton({
 
   if (confirming) {
     return (
-      <div className="flex items-center gap-2 rounded-full bg-[var(--color-gold)]/15 px-3 py-1 text-xs ring-1 ring-[var(--color-gold)]/40">
-        <span className="text-[var(--color-ink-inverse)]/95">
+      <div className="flex items-center gap-2 rounded-full bg-[var(--color-accent-tint)] px-3 py-1 text-xs ring-1 ring-[var(--color-accent)]/50">
+        <span className="text-[var(--color-ink)]">
           {playsLeft} plays unused — really end?
         </span>
         <Button
@@ -1233,7 +1239,7 @@ function EndTurnButton({
 function BarShell({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="surface-inked fixed bottom-0 left-0 right-0 z-30 flex flex-wrap items-center gap-2 rounded-t-2xl border-t-0 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_-12px_rgba(15,42,46,0.4)]"
+      className="surface-felt fixed bottom-0 left-0 right-0 z-30 flex flex-wrap items-center gap-2 rounded-t-2xl p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
       data-testid="action-bar"
     >
       {children}
@@ -1269,7 +1275,7 @@ function CardActionButtons({
   const banks = (
     <button
       onClick={() => onPlay({ type: "PLAY_AS_MONEY", playerId: selfId, cardId })}
-      className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-emerald-500 px-3 font-semibold text-white hover:bg-emerald-400"
+      className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-emerald-500 px-3 font-semibold text-white hover:bg-emerald-400"
       data-testid="bank-button"
       title={`Bank this card sideways as $${valueOf(card)}M.`}
     >
@@ -1280,10 +1286,10 @@ function CardActionButtons({
   // Hint label rendered alongside buttons.
   const hintLabel = (
     <div
-      className="flex w-full items-center gap-2 text-[11px] text-[var(--color-ink-inverse)]/75"
+      className="flex w-full items-center gap-2 text-[11px] text-[var(--color-ink-on-dark)]/75"
       aria-live="polite"
     >
-      <span className="rounded-full bg-[var(--color-ink-inverse)]/10 px-2 py-0.5 font-semibold uppercase tracking-[0.16em]">
+      <span className="rounded-full bg-[var(--color-ink-on-dark)]/10 px-2 py-0.5 font-semibold uppercase tracking-[0.16em]">
         {cardKindLabel(card)}
       </span>
       <span className="leading-tight">{mechanicHint}</span>
@@ -1311,7 +1317,7 @@ function CardActionButtons({
                 assignedColor: card.set,
               })
             }
-            className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
+            className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
             data-testid="play-property-button"
           >
             Place in {card.set}
@@ -1324,7 +1330,7 @@ function CardActionButtons({
           {hintLabel}
           <button
             onClick={() => beginDraft({ kind: "wild-place", cardId, allowed: card.sets as SetColor[] })}
-            className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
+            className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
             data-testid="play-wild2-button"
           >
             Place wild ({card.sets.join("/")})
@@ -1337,7 +1343,7 @@ function CardActionButtons({
           {hintLabel}
           <button
             onClick={() => beginDraft({ kind: "wild-place", cardId, allowed: ALL_COLORS })}
-            className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
+            className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
             data-testid="play-wild10-button"
           >
             Place wild
@@ -1358,7 +1364,7 @@ function CardActionButtons({
             <>
               <button
                 onClick={() => onPlay({ type: "PLAY_PASS_GO", playerId: selfId, cardId })}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400"
                 data-testid="play-action-button"
                 title="Draw 2 extra cards now."
               >
@@ -1372,7 +1378,7 @@ function CardActionButtons({
             <>
               <button
                 onClick={() => beginDraft({ kind: "sly-pick-target", cardId })}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-purple-500 px-3 font-semibold text-white hover:bg-purple-400"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-purple-500 px-3 font-semibold text-white hover:bg-purple-400"
                 data-testid="play-action-button"
                 title="Steal one property from an opponent (not in a complete set)."
               >
@@ -1388,7 +1394,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "forced-pick-mine", cardId })}
                 disabled={!myTradable}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-purple-500 px-3 font-semibold text-white hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-purple-500 px-3 font-semibold text-white hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={myTradable ? "Trade one of your properties for an opponent's." : "Need at least one of your own properties (not in a complete set) to trade."}
               >
@@ -1407,7 +1413,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "breaker-pick-target", cardId })}
                 disabled={!anyComplete}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-red-500 px-3 font-semibold text-white hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-red-500 px-3 font-semibold text-white hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={anyComplete ? "Steal a complete set." : "No opponent has a complete set to take."}
               >
@@ -1422,7 +1428,7 @@ function CardActionButtons({
             <>
               <button
                 onClick={() => beginDraft({ kind: "debt-pick-target", cardId })}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-orange-500 px-3 font-semibold text-white hover:bg-orange-400"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-orange-500 px-3 font-semibold text-white hover:bg-orange-400"
                 data-testid="play-action-button"
                 title="Force one opponent to pay you $5M."
               >
@@ -1436,7 +1442,7 @@ function CardActionButtons({
             <>
               <button
                 onClick={() => onPlay({ type: "PLAY_BIRTHDAY", playerId: selfId, cardId })}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-pink-500 px-3 font-semibold text-white hover:bg-pink-400"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-pink-500 px-3 font-semibold text-white hover:bg-pink-400"
                 data-testid="play-action-button"
                 title="Every opponent owes you $2M."
               >
@@ -1454,7 +1460,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "house-pick", cardId, isHotel: false })}
                 disabled={!eligible}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-amber-500 px-3 font-semibold text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-[var(--color-set-green)] px-3 font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={eligible ? "+$3M rent on a complete standard-color set." : "Need a complete standard-color set without a house yet."}
               >
@@ -1471,7 +1477,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "house-pick", cardId, isHotel: true })}
                 disabled={!eligible}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-amber-500 px-3 font-semibold text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-[var(--color-accent)] px-3 font-semibold text-white hover:bg-[var(--color-accent-deep)] disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={eligible ? "+$4M rent on a complete set with a house." : "Need a complete set that already has a house."}
               >
@@ -1499,7 +1505,7 @@ function CardActionButtons({
                   })
                 }
                 disabled={!canCharge}
-                className="btn-sticker h-11 flex-1 min-w-[120px] rounded-full bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-blue-500 px-3 font-semibold text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={
                   canCharge

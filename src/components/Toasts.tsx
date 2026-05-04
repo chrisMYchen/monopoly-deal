@@ -73,7 +73,7 @@ export function Toasts({ state, selfId }: { state: ProjectedGameState; selfId?: 
             className={[
               "pointer-events-auto rounded-full px-4 py-1.5 text-center text-sm shadow-[0_8px_24px_-8px_rgba(15,42,46,0.4)] backdrop-blur",
               t.isTarget
-                ? "bg-[var(--color-gold)] text-[var(--color-inked)] ring-2 ring-[var(--color-gold-deep)]/60"
+                ? "bg-[var(--color-accent)] text-[var(--color-felt)] ring-2 ring-[var(--color-accent-deep)]/60"
                 : "surface-inked",
             ].join(" ")}
           >

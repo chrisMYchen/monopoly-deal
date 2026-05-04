@@ -39,7 +39,7 @@ export function DropZone({
         "transition-all duration-150",
         active === false ? "opacity-100" : "",
         isOver
-          ? hoverClassName ?? "ring-2 ring-yellow-300/80 ring-offset-2 ring-offset-zinc-900 shadow-[0_0_24px_rgba(253,224,71,0.35)]"
+          ? hoverClassName ?? "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-felt)]"
           : "",
       ].join(" ")}
     >
