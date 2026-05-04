@@ -13,6 +13,7 @@ import { useGame } from "@/lib/gameStore";
 import { connectRoom, type WsClient } from "@/lib/wsClient";
 
 import { AnimationLayer } from "./AnimationLayer";
+import { Button } from "./ui/Button";
 import { Lobby } from "./Lobby";
 import { PlayingTable } from "./PlayingTable";
 import { ResultsScreen } from "./ResultsScreen";
@@ -86,8 +87,12 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-6 p-6 text-center">
         <header>
-          <p className="text-sm uppercase tracking-widest opacity-60">Joining room</p>
-          <p className="mt-1 font-mono text-3xl tracking-[0.4em]">{roomCode}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-ink-soft)]">
+            Joining room
+          </p>
+          <p className="tabular mt-1 font-display text-4xl font-bold tracking-[0.32em] text-[var(--color-ink)]">
+            {roomCode}
+          </p>
         </header>
         <form
           className="flex w-full flex-col gap-3"
@@ -96,7 +101,7 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
             submit();
           }}
         >
-          <label className="flex flex-col gap-1 text-left text-sm opacity-90">
+          <label className="flex flex-col gap-1.5 text-left text-sm font-semibold text-[var(--color-ink)]">
             Your name
             <input
               autoFocus
@@ -104,18 +109,20 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
               onChange={(e) => setDraftName(e.target.value)}
               placeholder="Player"
               maxLength={24}
-              className="h-11 rounded-md border border-white/20 bg-white/5 px-3 text-base outline-none focus:border-white/60"
+              className="h-11 rounded-full border-[1.5px] border-[var(--color-ink)]/15 bg-white px-4 text-base text-[var(--color-ink)] outline-none transition focus:border-[var(--color-accent)]"
               data-testid="join-name-input"
             />
           </label>
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            size="lg"
+            fullWidth
             disabled={!trimmed}
-            className="h-11 rounded-md bg-white/90 px-4 font-semibold text-zinc-900 transition hover:bg-white disabled:opacity-50"
             data-testid="join-submit"
           >
             Join game
-          </button>
+          </Button>
         </form>
       </main>
     );
