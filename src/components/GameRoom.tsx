@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getWorkerOrigin } from "@/lib/config";
+import { setBridgeClient } from "@/lib/devBridge";
 import {
   consumeFreshNameMarker,
   getOrCreateSessionId,
@@ -39,6 +40,18 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
   const [draftName, setDraftName] = useState("");
 
   useEffect(() => {
+    // Dev/sim escape hatch: `?asName=Alice` forces a fresh identity for this
+    // tab and skips the join prompt, so the gstack harness can spawn N tabs
+    // each as a distinct named player.
+    if (process.env.NODE_ENV !== "production") {
+      const params = new URLSearchParams(window.location.search);
+      const asName = params.get("asName")?.trim();
+      if (asName) {
+        setStoredName(asName);
+        setName(asName);
+        return;
+      }
+    }
     const stored = getStoredName().trim();
     const fromHome = consumeFreshNameMarker();
     if (fromHome && stored) {
@@ -70,7 +83,9 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
       },
     });
     wsRef.current = client;
+    setBridgeClient(client);
     return () => {
+      setBridgeClient(null);
       client.close();
       reset();
     };
