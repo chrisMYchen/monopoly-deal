@@ -453,6 +453,62 @@ describe("PLAY_RENT", () => {
     expect(getPlayer(s, "p2").bank).toEqual([]);
   });
 
+  it("rent amount is fixed at play time (paying with same-color property does not inflate later defenders' bills)", () => {
+    // 3 players. p1 has 1/3 red (ladder slot 0 = $2M). Plays 2-color red rent.
+    // p2's JSN window opens first; p2 pays with their one red property — that
+    // raises p1 to 2/3 red (ladder slot 1 = $3M). p3's JSN window opens next.
+    // Per Hasbro: p3 still owes $2M — the rent demand was declared once at
+    // play time. The bug we're locking out: recomputing rent per defender
+    // would charge p3 $3M, which feels exploitable and rules-incorrect.
+    let s = newGame(3);
+    const reds = allOf((c) => c.kind === "property" && c.set === "red");
+    const p1Red = reds[0]!;
+    const p2Red = reds[1]!;
+    const m4 = findCard((c) => c.kind === "money" && c.value === 4);
+    const m2 = findCard((c) => c.kind === "money" && c.value === 2);
+    const rentCard = findCard(
+      (c) =>
+        c.kind === "action" &&
+        c.action === "rent" &&
+        !c.rentSingleTarget &&
+        c.rentSets?.includes("red") === true,
+    );
+    s = injectHand(s, "p1", [rentCard]);
+    s = injectPropertySets(s, "p1", [{ color: "red", cardIds: [p1Red] }]);
+    // p2 holds a red property in their tableau (will pay with it)
+    s = injectPropertySets(s, "p2", [{ color: "red", cardIds: [p2Red] }]);
+    // p3 holds enough cash to cover the original $2M demand
+    s = injectBank(s, "p3", [m4, m2]);
+
+    // Sanity: p1's red set has 1 card → ladder[0] = $2M.
+    expect(rentFor(getPlayer(s, "p1"), "red")).toBe(2);
+
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_RENT", playerId: "p1", cardId: rentCard, color: "red" });
+
+    // p2 declines JSN, pays with their red property — now p1 has 2/3 red.
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
+    expect(s.pending?.kind).toBe("awaitPayment");
+    s = applyAction(s, { type: "PAY", playerId: "p2", cardIds: [p2Red] });
+    // p1 now has 2 reds; were rent recomputed it would be $3M.
+    expect(getPlayer(s, "p1").propertySets.find((g) => g.color === "red")?.cardIds.length).toBe(2);
+    expect(rentFor(getPlayer(s, "p1"), "red")).toBe(3);
+
+    // p3's window now open. Their bill should still be $2M (declared at play
+    // time), not $3M (the recomputed value).
+    expect(s.pending?.kind).toBe("awaitJustSayNo");
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p3", play: false });
+    expect(s.pending?.kind).toBe("awaitPayment");
+    if (s.pending?.kind === "awaitPayment") {
+      expect(s.pending.amountOwed).toBe(2);
+    }
+    // p3 pays exactly $2M — should fully cover.
+    s = applyAction(s, { type: "PAY", playerId: "p3", cardIds: [m2] });
+    expect(s.pending).toBeNull();
+    // p3's $4M bill remainder should still be in their bank (not seized).
+    expect(getPlayer(s, "p3").bank).toContain(m4);
+  });
+
   it("Double The Rent doubles the amount and consumes 2 plays", () => {
     let s = newGame(2);
     const greens = allOf((c) => c.kind === "property" && c.set === "green").slice(0, 2); // 2/3 -> $4 ladder

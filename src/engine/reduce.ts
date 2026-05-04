@@ -814,6 +814,7 @@ function playRent(
       sourceId: source.id,
       color: a.color,
       multiplier,
+      baseRent,
       targetIds,
     },
     actionCardId: a.cardId,
@@ -1143,9 +1144,10 @@ function applySingleEffect(
       return;
     }
     case "rent": {
-      const sourcePlayer = playerById(s, declaration.sourceId);
-      const baseRent = rentFor(sourcePlayer, declaration.color);
-      const totalDue = baseRent * declaration.multiplier;
+      // Use the rent amount captured at play time. Recomputing here would
+      // mean defender B owes more if defender A paid with a same-color
+      // property between their JSN windows — not how Monopoly Deal works.
+      const totalDue = declaration.baseRent * declaration.multiplier;
       transitionToPayment(s, source, defender, totalDue, declaration);
       return;
     }
