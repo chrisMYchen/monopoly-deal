@@ -256,10 +256,10 @@ export function CompleteSetPicker({
             <button
               key={`${g.color}-${gi}`}
               onClick={() => onPick(g.color, gi)}
-              className="rounded border border-yellow-400/60 bg-yellow-400/10 p-2 text-left hover:bg-yellow-400/20"
+              className="rounded-xl border-2 border-[var(--color-accent)] bg-[var(--color-accent-tint)] p-3 text-left transition-colors hover:bg-[var(--color-accent)]/15"
               data-testid={`pick-set-${g.color}-${gi}`}
             >
-              <div className="mb-1 text-sm font-semibold capitalize">{g.color} set</div>
+              <div className="mb-1 text-sm font-semibold capitalize text-[var(--color-ink)]">{g.color} set</div>
               <div className="flex gap-1">
                 {g.cardIds.map((cid) => (
                   <Card key={cid} cardId={cid} size="sm" />
