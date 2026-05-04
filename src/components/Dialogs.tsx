@@ -741,9 +741,9 @@ export function JsnPrompt({
 }: {
   responderName: string;
   prompt: string;
-  // The Counter card to play; null if the responder has none.
+  // The Just Say No card to play; null if the responder has none.
   jsnInHand: CardId | null;
-  // How many Counter cards the responder currently holds (so they can plan).
+  // How many Just Say No cards the responder currently holds (so they can plan).
   jsnInventory: number;
   // Optional richer preview (the card / amount / set at stake). The `set`
   // variant is used for Deal Breaker, where the entire group is on the line —
@@ -763,8 +763,17 @@ export function JsnPrompt({
   onPass: () => void;
 }) {
   const triggerEntry = lastMustShow(state.log);
+  // Pull the live declaration so we can phrase the pass button in terms of
+  // the actual consequence ("Pay $1M" beats "Let it happen" — the latter
+  // reads as a shrug exactly when the player most needs concrete copy).
+  const declaration =
+    state.pending?.kind === "awaitJustSayNo" ? state.pending.declaration : undefined;
+  const passLabel = passLabelForJsn(declaration, preview);
   return (
-    <Modal title={chainDepth === 0 ? "Just Say No?" : `Counter war · depth ${chainDepth}`} testId="jsn-prompt">
+    <Modal
+      title={chainDepth === 0 ? "Just Say No?" : `Just Say No chain · depth ${chainDepth}`}
+      testId="jsn-prompt"
+    >
       <TriggerEntryCard entry={triggerEntry} state={state} selfId={selfId} />
       <p className="mb-2 font-semibold text-[var(--color-ink)]">{responderName}, your call:</p>
       <p className="mb-3 text-sm text-[var(--color-ink-soft)]">{prompt}</p>
@@ -773,7 +782,7 @@ export function JsnPrompt({
           <Card cardId={preview.cardId} size="sm" animated={false} />
           <div className="text-xs text-[var(--color-ink-soft)]">
             <div className="font-semibold text-[var(--color-ink)]">At stake:</div>
-            <div>This card transfers if you don't counter.</div>
+            <div>This card transfers if you don't Just Say No.</div>
           </div>
         </div>
       )}
@@ -808,31 +817,64 @@ export function JsnPrompt({
           </div>
         </div>
       )}
-      <p className="mb-4 text-xs text-[var(--color-ink-faint)]">{ACTION_DESCRIPTIONS.justSayNo}</p>
+      {jsnInHand && (
+        <p className="mb-4 text-xs text-[var(--color-ink-faint)]">{ACTION_DESCRIPTIONS.justSayNo}</p>
+      )}
       <div className="flex gap-2">
-        <Button
-          variant="primary"
-          fullWidth
-          onClick={() => jsnInHand && onPlay(jsnInHand)}
-          disabled={!jsnInHand}
-          title={jsnInHand ? `Cancel this action — ${jsnInventory - 1} Counter${jsnInventory - 1 === 1 ? "" : "s"} left after this` : "You don't have a Counter card"}
-          data-testid="jsn-play"
-        >
-          {jsnInHand
-            ? `Counter (${jsnInventory} in hand)`
-            : "Counter (no card)"}
-        </Button>
-        <Button
-          variant="secondary"
-          fullWidth
-          onClick={onPass}
-          data-testid="jsn-pass"
-        >
-          Let it happen
-        </Button>
+        {jsnInHand ? (
+          <>
+            <Button
+              variant="primary"
+              fullWidth
+              onClick={() => onPlay(jsnInHand)}
+              title={`Cancel this action — ${jsnInventory - 1} Just Say No${jsnInventory - 1 === 1 ? "" : "s"} left after this`}
+              data-testid="jsn-play"
+            >
+              Just Say No
+              <span className="ml-2 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">
+                {jsnInventory} in hand
+              </span>
+            </Button>
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={onPass}
+              data-testid="jsn-pass"
+            >
+              {passLabel}
+            </Button>
+          </>
+        ) : (
+          // No Just Say No in hand → only one real choice. Promote it to a
+          // single primary CTA labeled with the actual consequence so the
+          // player isn't staring at a disabled button as visual debris.
+          <Button
+            variant="primary"
+            fullWidth
+            onClick={onPass}
+            data-testid="jsn-pass"
+          >
+            {passLabel}
+          </Button>
+        )}
       </div>
     </Modal>
   );
+}
+
+function passLabelForJsn(
+  declaration: DeclaredAction | undefined,
+  preview:
+    | { kind: "card"; cardId: CardId }
+    | { kind: "amount"; amount: number }
+    | { kind: "set"; cardIds: CardId[]; color: SetColor }
+    | undefined,
+): string {
+  if (preview?.kind === "amount") return `Pay $${preview.amount}M`;
+  if (declaration?.kind === "slyDeal") return "Allow steal";
+  if (declaration?.kind === "forcedDeal") return "Allow swap";
+  if (declaration?.kind === "dealBreaker") return "Allow set break";
+  return "Continue";
 }
 
 // ---------------------------------------------------------------------------
@@ -853,7 +895,7 @@ export function SpectatorPendingOverlay({ state }: { state: ProjectedGameState }
     const responderName = nameOf(state, responderId);
     title =
       p.jsnStack.length > 0
-        ? `Counter war (depth ${p.jsnStack.length}) — ${responderName} deciding`
+        ? `Just Say No chain (depth ${p.jsnStack.length}) — ${responderName} deciding`
         : `${responderName} is deciding…`;
     detail = describeDeclarationForSpectator(p.declaration, state);
   } else if (p.kind === "awaitPayment") {

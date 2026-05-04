@@ -111,6 +111,11 @@ export type DeclaredAction =
       sourceId: PlayerId;
       color: SetColor;
       multiplier: number; // 1, 2, or 4 — for Double The Rent stacking
+      // Per Hasbro: rent is a single demand, fixed at play time. Captured
+      // here so multi-target rent does not recompute per defender — otherwise
+      // earlier defenders paying with same-color property would inflate the
+      // bill for later defenders mid-resolution.
+      baseRent: number;
       targetIds: PlayerId[]; // single-target for ★ wild rent; all opponents for 2-color
     };
 

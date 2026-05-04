@@ -357,12 +357,12 @@ function PlayingTableInner({
       } else if (w.declaration.kind === "birthday") {
         preview = { kind: "amount", amount: 2 };
       } else if (w.declaration.kind === "rent") {
-        const sourcePlayer = state.players.find((p) => p.id === w.declaration.sourceId);
-        const baseGroup = sourcePlayer?.propertySets.find(
-          (g) => w.declaration.kind === "rent" && g.color === w.declaration.color,
-        );
-        const baseRent = baseGroup ? rentForUI(baseGroup) : 0;
-        preview = { kind: "amount", amount: baseRent * w.declaration.multiplier };
+        // Rent amount is fixed at play time (declaration.baseRent). Don't
+        // recompute from the source's current set — see DeclaredAction docs.
+        preview = {
+          kind: "amount",
+          amount: w.declaration.baseRent * w.declaration.multiplier,
+        };
       } else if (w.declaration.kind === "dealBreaker") {
         // The whole set is on the line — render the strip so the defender
         // can weigh "burn JSN now" against losing every card in the group.
@@ -1150,8 +1150,12 @@ function SelfArea({
       </div>
       {bankOpen && <SelfBankSheet self={self} onClose={() => setBankOpen(false)} />}
       {isMyTurn && wildIds.size > 0 && (
-        <p className="text-[11px] opacity-50" aria-live="polite">
-          Tap a wild card in your properties to reassign its color (free).
+        <p
+          className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[var(--color-warning)]/25 px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-ink-on-dark)] ring-1 ring-[var(--color-warning)]/50"
+          aria-live="polite"
+        >
+          <span aria-hidden>★</span>
+          Tap any wild ★ to retag its color — free, doesn&apos;t use a play.
         </p>
       )}
       <DropZone

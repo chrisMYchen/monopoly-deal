@@ -112,11 +112,18 @@ export function PropertySetsView({
                     />
                     {isWild && (
                       <span
-                        className="pointer-events-none absolute -right-1 -top-1 rounded-full border border-[var(--color-ink)] bg-[var(--color-warning)] px-1 text-[8px] font-bold uppercase tracking-widest text-[var(--color-ink)]"
+                        className={[
+                          "pointer-events-none absolute -right-1 -top-1 rounded-full border border-[var(--color-ink)] bg-[var(--color-warning)] px-1 text-[8px] font-bold uppercase tracking-widest text-[var(--color-ink)]",
+                          // Subtle opacity pulse only when the owner can act on
+                          // this card right now — pulls the eye toward the
+                          // free reassignment affordance without nagging when
+                          // it isn't actionable.
+                          isSelectable ? "rr-edge-pulse" : "",
+                        ].join(" ")}
                         title={
                           c.kind === "wild2"
-                            ? `Wild (${c.sets[0]}/${c.sets[1]}) — tap on your turn to reassign (free)`
-                            : "Rainbow wild — tap on your turn to reassign (free)"
+                            ? `Wild (${c.sets[0]}/${c.sets[1]}) — tap on your turn to retag its color (free, doesn't use a play)`
+                            : "Rainbow wild — tap on your turn to retag its color (free, doesn't use a play)"
                         }
                       >
                         ★
