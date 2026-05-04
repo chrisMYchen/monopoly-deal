@@ -24,3 +24,4 @@ next-env.d.ts
 .wrangler/
 .dev.vars
 .gstack/
+.gstack-design-audit/
