@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 
+import { Button } from "./ui/Button";
 import { Card } from "./Card";
 import {
   ACTION_DESCRIPTIONS,
@@ -38,7 +39,7 @@ function TriggerEntryCard({
   if (!entry) return null;
   return (
     <div className="mb-3 rounded border border-[var(--color-ink)]/15 bg-[var(--color-tint)] px-2.5 py-2 text-[var(--color-ink)]">
-      <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest opacity-50">
+      <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
         Triggering action
       </div>
       <LogEntryRow entry={entry} state={state} selfId={selfId} variant="dialog" />
@@ -119,11 +120,11 @@ export function PlayerPicker({
           <button
             key={p.id}
             onClick={() => onPick(p.id)}
-            className="flex items-center justify-between rounded border border-white/15 bg-white/5 p-3 text-left hover:bg-white/10"
+            className="flex items-center justify-between rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-card)] p-3 text-left transition-colors hover:bg-[var(--color-tint)] hover:border-[var(--color-accent)]/40"
             data-testid={`pick-player-${p.id}`}
           >
-            <span className="font-semibold">{p.name}</span>
-            <span className="text-xs opacity-60">{p.handCount} cards</span>
+            <span className="font-semibold text-[var(--color-ink)]">{p.name}</span>
+            <span className="text-xs text-[var(--color-ink-soft)]">{p.handCount} cards</span>
           </button>
         ))}
       </div>
@@ -152,7 +153,7 @@ export function OpponentPropertyPicker({
   return (
     <Modal title={title} onCancel={onCancel} testId="opponent-property-picker">
       {opponent.propertySets.length === 0 ? (
-        <p className="text-sm opacity-60">{opponent.name} has no properties.</p>
+        <p className="text-sm text-[var(--color-ink-soft)]">{opponent.name} has no properties.</p>
       ) : (
         <div className="flex flex-wrap gap-3">
           {opponent.propertySets.map((g, gi) =>
@@ -165,7 +166,7 @@ export function OpponentPropertyPicker({
                   onClick={() => onPick(cid, g.color, gi)}
                   className={[
                     "rounded p-1 transition",
-                    ok ? "ring-2 ring-pink-400/60 hover:ring-pink-300" : "opacity-40",
+                    ok ? "ring-2 ring-[var(--color-accent)]/55 hover:ring-[var(--color-accent)]" : "opacity-40",
                   ].join(" ")}
                   data-testid={`pick-card-${cid}`}
                 >
@@ -200,7 +201,7 @@ export function MyPropertyPicker({
   return (
     <Modal title={title} onCancel={onCancel} testId="my-property-picker">
       {self.propertySets.length === 0 ? (
-        <p className="text-sm opacity-60">You have no properties to swap.</p>
+        <p className="text-sm text-[var(--color-ink-soft)]">You have no properties to swap.</p>
       ) : (
         <div className="flex flex-wrap gap-3">
           {self.propertySets.map((g, gi) =>
@@ -213,7 +214,7 @@ export function MyPropertyPicker({
                   onClick={() => onPick(cid, g.color, gi)}
                   className={[
                     "rounded p-1 transition",
-                    ok ? "ring-2 ring-emerald-400/60 hover:ring-emerald-300" : "opacity-40",
+                    ok ? "ring-2 ring-[var(--color-success)]/60 hover:ring-[var(--color-success)]" : "opacity-40",
                   ].join(" ")}
                 >
                   <Card cardId={cid} size="sm" animated={false} />
@@ -248,7 +249,7 @@ export function CompleteSetPicker({
   return (
     <Modal title={title} onCancel={onCancel} testId="complete-set-picker">
       {completeGroups.length === 0 ? (
-        <p className="text-sm opacity-60">{opponent.name} has no complete sets.</p>
+        <p className="text-sm text-[var(--color-ink-soft)]">{opponent.name} has no complete sets.</p>
       ) : (
         <div className="grid gap-3">
           {completeGroups.map(({ g, gi }) => (
@@ -309,9 +310,9 @@ export function WildAssignPicker({
 
   return (
     <Modal title={title} onCancel={onCancel} testId="wild-assign">
-      {subtitle && <p className="mb-2 text-xs opacity-70">{subtitle}</p>}
+      {subtitle && <p className="mb-2 text-xs text-[var(--color-ink-soft)]">{subtitle}</p>}
       {isRainbow && (
-        <p className="mb-2 text-xs opacity-70">
+        <p className="mb-2 text-xs text-[var(--color-ink-soft)]">
           Rainbow wilds must attach to a same-color group already in play.
           Highlighted colors are eligible.
         </p>
@@ -337,14 +338,14 @@ export function WildAssignPicker({
                       : "Starts a new group of this color."
               }
               className={[
-                "relative rounded border px-3 py-3 text-sm font-semibold capitalize transition",
+                "relative rounded-xl border px-3 py-3 text-sm font-semibold capitalize text-[var(--color-ink)] transition-colors",
                 completes
-                  ? "border-emerald-300/70 bg-emerald-300/10 hover:bg-emerald-300/20"
+                  ? "border-[var(--color-success)] bg-[var(--color-success)]/10 hover:bg-[var(--color-success)]/15"
                   : eligible
                     ? exists
-                      ? "border-yellow-300/60 bg-yellow-300/5 hover:bg-yellow-300/15"
-                      : "border-white/15 hover:bg-white/10"
-                    : "cursor-not-allowed border-white/10 opacity-40",
+                      ? "border-[var(--color-accent)]/55 bg-[var(--color-accent-tint)] hover:bg-[var(--color-accent)]/15"
+                      : "border-[var(--color-ink)]/15 hover:bg-[var(--color-tint)]"
+                    : "cursor-not-allowed border-[var(--color-ink)]/10 text-[var(--color-ink-faint)]",
               ].join(" ")}
               style={{
                 borderTopWidth: 8,
@@ -353,11 +354,11 @@ export function WildAssignPicker({
             >
               {c}
               {completes ? (
-                <span className="absolute right-1 top-1 rounded bg-emerald-300/40 px-1 text-[9px] font-mono uppercase tracking-widest">
+                <span className="tabular absolute right-1 top-1 rounded-full bg-[var(--color-success)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white">
                   ✨ completes
                 </span>
               ) : exists ? (
-                <span className="absolute right-1 top-1 rounded bg-yellow-300/30 px-1 text-[9px] font-mono uppercase tracking-widest">
+                <span className="tabular absolute right-1 top-1 rounded-full bg-[var(--color-tint)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
                   group
                 </span>
               ) : null}
@@ -393,7 +394,11 @@ export function RentColorPicker({
             key={c}
             onClick={() => onPick(c)}
             data-testid={`rent-color-${c}`}
-            className="rounded border border-white/15 px-3 py-3 text-sm font-semibold capitalize hover:bg-white/10"
+            className="rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-card)] px-3 py-3 text-sm font-semibold capitalize text-[var(--color-ink)] transition-colors hover:bg-[var(--color-tint)] hover:border-[var(--color-accent)]/40"
+            style={{
+              borderLeftWidth: 6,
+              borderLeftColor: `var(--color-set-${c.replace(/([A-Z])/g, "-$1").toLowerCase()})`,
+            }}
           >
             {c}
           </button>
@@ -448,38 +453,42 @@ export function PaymentDialog({
     <Modal title={`You owe $${amountOwed}M`} testId="payment-dialog">
       <TriggerEntryCard entry={triggerEntry} state={state} selfId={selfId} />
       {reason && (
-        <p className="mb-2 text-xs uppercase tracking-widest opacity-60">{reason}</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
+          {reason}
+        </p>
       )}
-      <p className="mb-3 text-sm opacity-80">
-        Selected: <span className="font-mono">${offeredValue}M</span>
+      <p className="mb-3 text-sm text-[var(--color-ink-soft)]">
+        Selected: <span className="tabular font-semibold text-[var(--color-ink)]">${offeredValue}M</span>
         {!enough && totalAssetCount > 0 && " (less than owed — must offer everything)"}
         {offeredValue > amountOwed && " (overpaying — no change given)"}
       </p>
 
-      {/* Smart auto-cover: pick cheapest cards summing >= owed. Helps experienced players speed through payments and beginners by showing a sensible default. */}
+      {/* Smart auto-cover: pick cheapest cards summing >= owed. */}
       {totalAssetCount > 0 && (
         <div className="mb-3 flex gap-2">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => setSelected(autoCover(payer, amountOwed))}
-            className="rounded border border-white/15 px-2 py-1 text-xs opacity-80 hover:bg-white/5"
             data-testid="payment-auto"
           >
             Auto-pay (cheapest)
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setSelected(new Set())}
-            className="rounded border border-white/15 px-2 py-1 text-xs opacity-80 hover:bg-white/5"
           >
             Clear
-          </button>
+          </Button>
         </div>
       )}
 
       {payer.bank.length > 0 && (
         <section className="mb-3">
-          <h4 className="mb-1 text-sm uppercase tracking-widest opacity-60">Bank</h4>
+          <h4 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">Bank</h4>
           <div className="flex flex-wrap gap-2">
             {payer.bank.map((cid) => (
               <Card
@@ -497,7 +506,7 @@ export function PaymentDialog({
 
       {payer.propertySets.length > 0 && (
         <section className="mb-3">
-          <h4 className="mb-1 text-sm uppercase tracking-widest opacity-60">Properties</h4>
+          <h4 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">Properties</h4>
           <div className="flex flex-wrap gap-2">
             {payer.propertySets.flatMap((g) =>
               g.cardIds.map((cid) => (
@@ -515,14 +524,16 @@ export function PaymentDialog({
         </section>
       )}
 
-      <button
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
         disabled={!canSubmit}
         onClick={() => onSubmit(Array.from(selected))}
-        className="h-11 w-full rounded-md bg-white/90 px-4 font-semibold text-zinc-900 disabled:opacity-50"
         data-testid="payment-submit"
       >
         Pay {totalAssetCount === 0 ? "(nothing — debt forgiven)" : enough ? `$${offeredValue}M` : "everything"}
-      </button>
+      </Button>
     </Modal>
   );
 }
@@ -587,44 +598,46 @@ export function JsnPrompt({
   return (
     <Modal title={chainDepth === 0 ? "Just Say No?" : `Counter war · depth ${chainDepth}`} testId="jsn-prompt">
       <TriggerEntryCard entry={triggerEntry} state={state} selfId={selfId} />
-      <p className="mb-2 font-semibold">{responderName}, your call:</p>
-      <p className="mb-3 text-sm opacity-80">{prompt}</p>
+      <p className="mb-2 font-semibold text-[var(--color-ink)]">{responderName}, your call:</p>
+      <p className="mb-3 text-sm text-[var(--color-ink-soft)]">{prompt}</p>
       {preview?.kind === "card" && (
-        <div className="mb-3 flex items-center gap-3 rounded border border-white/10 bg-white/5 p-2">
+        <div className="mb-3 flex items-center gap-3 rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-tint)] p-3">
           <Card cardId={preview.cardId} size="sm" animated={false} />
-          <div className="text-xs opacity-80">
-            <div className="font-semibold">At stake:</div>
+          <div className="text-xs text-[var(--color-ink-soft)]">
+            <div className="font-semibold text-[var(--color-ink)]">At stake:</div>
             <div>This card transfers if you don't counter.</div>
           </div>
         </div>
       )}
       {preview?.kind === "amount" && (
-        <div className="mb-3 rounded border border-white/10 bg-white/5 p-2 text-sm">
-          <span className="font-semibold">At stake: </span>
-          You'll owe <span className="font-mono">${preview.amount}M</span>.
+        <div className="mb-3 rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-tint)] p-3 text-sm text-[var(--color-ink-soft)]">
+          <span className="font-semibold text-[var(--color-ink)]">At stake: </span>
+          You'll owe <span className="tabular font-semibold text-[var(--color-ink)]">${preview.amount}M</span>.
           You can pay with money or properties.
         </div>
       )}
-      <p className="mb-4 text-xs italic opacity-60">{ACTION_DESCRIPTIONS.justSayNo}</p>
+      <p className="mb-4 text-xs text-[var(--color-ink-faint)]">{ACTION_DESCRIPTIONS.justSayNo}</p>
       <div className="flex gap-2">
-        <button
+        <Button
+          variant="primary"
+          fullWidth
           onClick={() => jsnInHand && onPlay(jsnInHand)}
           disabled={!jsnInHand}
           title={jsnInHand ? `Cancel this action — ${jsnInventory - 1} Counter${jsnInventory - 1 === 1 ? "" : "s"} left after this` : "You don't have a Counter card"}
-          className="h-11 flex-1 rounded-md bg-pink-500 px-4 font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
           data-testid="jsn-play"
         >
           {jsnInHand
             ? `Counter (${jsnInventory} in hand)`
             : "Counter (no card)"}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="secondary"
+          fullWidth
           onClick={onPass}
-          className="h-11 flex-1 rounded-md border border-white/30 px-4 font-semibold hover:bg-white/5"
           data-testid="jsn-pass"
         >
           Let it happen
-        </button>
+        </Button>
       </div>
     </Modal>
   );
@@ -666,13 +679,13 @@ export function SpectatorPendingOverlay({ state }: { state: ProjectedGameState }
   const triggerEntry = lastMustShow(state.log);
   return (
     <div
-      className="pointer-events-none fixed left-1/2 top-20 z-40 -translate-x-1/2 rounded-md border border-yellow-300/40 bg-zinc-900/85 px-4 py-2 text-center shadow-xl backdrop-blur"
+      className="surface-inked pointer-events-none fixed left-1/2 top-20 z-40 -translate-x-1/2 rounded-2xl px-4 py-2 text-center"
       role="status"
     >
-      <div className="text-sm font-semibold">{title}</div>
-      {detail && <div className="text-xs opacity-70">{detail}</div>}
+      <div className="text-sm font-semibold text-[var(--color-ink-on-dark)]">{title}</div>
+      {detail && <div className="text-xs text-[var(--color-ink-on-dark)]/70">{detail}</div>}
       {triggerEntry && (
-        <div className="pointer-events-none mt-2 flex justify-center text-left text-white/85">
+        <div className="pointer-events-none mt-2 flex justify-center text-left text-[var(--color-ink-on-dark)]/90">
           <LogEntryRow
             entry={triggerEntry}
             state={state}
@@ -745,14 +758,16 @@ export function DiscardToLimitDialog({
           />
         ))}
       </div>
-      <button
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
         disabled={!can}
         onClick={() => onSubmit(Array.from(selected))}
-        className="h-11 w-full rounded-md bg-white/90 font-semibold text-zinc-900 disabled:opacity-50"
         data-testid="discard-submit"
       >
         Discard
-      </button>
+      </Button>
     </Modal>
   );
 }
@@ -785,7 +800,7 @@ export function HouseHotelTargetPicker({
   return (
     <Modal title={title} onCancel={onCancel} testId="house-target">
       {candidates.length === 0 ? (
-        <p className="text-sm opacity-60">No eligible sets.</p>
+        <p className="text-sm text-[var(--color-ink-soft)]">No eligible sets.</p>
       ) : (
         <div className="grid gap-2">
           {candidates.map((g) => (
@@ -793,7 +808,11 @@ export function HouseHotelTargetPicker({
               key={g.color}
               onClick={() => onPick(g.color)}
               data-testid={`house-pick-${g.color}`}
-              className="rounded border border-white/15 px-3 py-2 text-left capitalize hover:bg-white/10"
+              className="rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-card)] px-3 py-2 text-left font-semibold capitalize text-[var(--color-ink)] transition-colors hover:bg-[var(--color-tint)] hover:border-[var(--color-accent)]/40"
+              style={{
+                borderLeftWidth: 6,
+                borderLeftColor: `var(--color-set-${g.color.replace(/([A-Z])/g, "-$1").toLowerCase()})`,
+              }}
             >
               {g.color}
             </button>
