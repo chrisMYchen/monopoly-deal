@@ -33,6 +33,10 @@ worker/
   src/index.ts          # Worker routes + Room DurableObject
   src/protocol.ts       # WebSocket message types (Client/ServerToServer/Client)
   test/scenarios.ts     # multi-player E2E scenarios
+sim/                    # gstack-driven local sim (UX iteration, not regression)
+  play.ts               # orchestrator: spawns N tabs, drives bots, captures moments
+  moments.ts            # log-event-based moment detector
+  b.ts                  # gstack `$B` CLI wrapper
 ```
 
 ## Commands
@@ -46,6 +50,8 @@ worker/
 | `bun run typecheck`           | App TypeScript check                          |
 | `bun run typecheck:worker`    | Worker TypeScript check                       |
 | `bun run test:e2e`            | Worker scenario tests (`bun worker/test/scenarios.ts`) |
+| `bun run server:dev:inject`   | Bun-native dev worker on :8787 with `/dev/state/` injection (sim prereq) |
+| `bun sim/play.ts`             | Local AI sim: 4 gstack tabs, greedy bots, mobile+desktop viewports, moment screenshots → `runs/<seed>-<ts>/` |
 | `bun run worker:deploy`       | Deploy Worker + DO to Cloudflare              |
 
 Local dev runs both servers in parallel: terminal A `bun run dev`, terminal B `bun run worker:dev`. The frontend connects to `http://localhost:8787` for the WebSocket.
@@ -88,6 +94,7 @@ Things that have bitten us or are easy to misread.
 
 - For engine changes: write a failing Vitest first (`src/engine/*.test.ts`), then implement, then `bun run test:run`.
 - For UI changes: exercise the feature in a browser before declaring done — type checks pass on plenty of broken UIs.
+- For "does the *experience* feel right" / cross-device layout: `bun sim/play.ts` runs a full 4-bot game end-to-end (~100s) and saves per-seat screenshots at moments + a final-state grid. Use it for design iteration, animation tuning, and mobile/desktop parity — not as a substitute for the Vitest engine suite. Requires `bun run dev` + `bun run server:dev:inject` running. The dev-only `window.__rr` bridge it leans on is gated by `NODE_ENV !== "production"`.
 - Run `bun run typecheck && bun run typecheck:worker` before commit.
 - Reach for the existing test helpers (`newGame()`, `injectHand()`, `findCard()`) instead of fishing through random draws.
 

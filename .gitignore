@@ -25,3 +25,6 @@ next-env.d.ts
 .dev.vars
 .gstack/
 .gstack-design-audit/
+
+# sim harness per-run artifacts (screenshots, manifests, action logs)
+runs/
