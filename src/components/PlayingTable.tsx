@@ -945,7 +945,7 @@ function Center({ state }: { state: ProjectedGameState }) {
         {/* Reshuffle warning when deck is almost empty — fair info for everyone. */}
         {state.drawPileCount > 0 && state.drawPileCount <= 5 && (
           <div
-            className="rounded bg-amber-300/20 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-amber-100"
+            className="rounded-full bg-[var(--color-warning)]/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white"
             title="Discard reshuffles into the draw pile when this empties"
           >
             🔄 reshuffle next
@@ -995,15 +995,21 @@ function SelfArea({
       data-player-id={self.id}
       data-player-chip={self.id}
       className={[
-        "mt-auto flex flex-col gap-2 rounded-md border p-2 transition",
-        isMyTurn ? "border-yellow-300/50 bg-yellow-300/5" : `${colorForPlayerId(self.id).border} ${colorForPlayerId(self.id).bg}`,
+        "mt-auto flex flex-col gap-2 rounded-md border p-2 transition-colors",
+        isMyTurn
+          ? "border-[var(--color-accent)] bg-[var(--color-accent)]/8"
+          : "border-white/15 bg-white/5",
       ].join(" ")}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex flex-wrap items-center gap-2 font-semibold">
-          <PlayerAvatar id={self.id} name={self.name} size="sm" />
+          <PlayerAvatar id={self.id} name={self.name} size="sm" onDark />
           You — {self.name}
-          {isMyTurn && <span className="text-yellow-300">(your turn)</span>}
+          {isMyTurn && (
+            <span className="rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-ink-on-dark)]">
+              your turn
+            </span>
+          )}
           <SetProgress count={completedSets} highlight />
         </h2>
         <div className="flex items-center gap-2 text-xs opacity-70">
@@ -1454,7 +1460,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "house-pick", cardId, isHotel: false })}
                 disabled={!eligible}
-                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-amber-500 px-3 font-semibold text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-[var(--color-set-green)] px-3 font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={eligible ? "+$3M rent on a complete standard-color set." : "Need a complete standard-color set without a house yet."}
               >
@@ -1471,7 +1477,7 @@ function CardActionButtons({
               <button
                 onClick={() => beginDraft({ kind: "house-pick", cardId, isHotel: true })}
                 disabled={!eligible}
-                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-amber-500 px-3 font-semibold text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-11 flex-1 min-w-[120px] rounded-full transition-colors bg-[var(--color-accent)] px-3 font-semibold text-white hover:bg-[var(--color-accent-deep)] disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="play-action-button"
                 title={eligible ? "+$4M rent on a complete set with a house." : "Need a complete set that already has a house."}
               >
