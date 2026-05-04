@@ -17,7 +17,8 @@ export type SfxKey =
   | "turn"
   | "win"
   | "wildFlip"
-  | "handOverflow";
+  | "handOverflow"
+  | "reshuffle";
 
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
@@ -178,6 +179,22 @@ function play(key: SfxKey, volumeScale: number): void {
         d2.connect(masterGain);
         tone(ac2, "sine", 392, 0.01, 0.18, 0.16, d2);
       }, 90);
+      break;
+    }
+    case "reshuffle": {
+      // Riffle / cascade — a longer noise sweep with a descending pitch tail
+      // so "the deck just got put back together" reads as a kinetic event,
+      // not a silent log line. Fires once per game on average.
+      noiseBurst(ac, 0.32, 1800, 3, 0.22, dest);
+      tone(ac, "triangle", { from: 520, to: 280, ramp: "exponential" }, 0.02, 0.28, 0.16, dest);
+      window.setTimeout(() => {
+        const ac2 = ensureCtx();
+        if (!ac2 || !masterGain) return;
+        const d2 = ac2.createGain();
+        d2.gain.value = volumeScale * 0.7;
+        d2.connect(masterGain);
+        noiseBurst(ac2, 0.16, 2400, 4, 0.18, d2);
+      }, 140);
       break;
     }
     case "win": {

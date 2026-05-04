@@ -423,6 +423,22 @@ describe("PLAY_PASS_GO", () => {
     expect(getPlayer(s, "p1").hand.length).toBe(beforeHand - 1 + 2);
     expect(s.playsRemaining).toBe(2);
   });
+
+  it("emits a passGo log event with count=2 for the AnimationLayer", () => {
+    let s = newGame();
+    const passGo = findCard((c) => c.kind === "action" && c.action === "passGo");
+    s = injectHand(s, "p1", [passGo]);
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    const logBefore = s.log.length;
+    s = applyAction(s, { type: "PLAY_PASS_GO", playerId: "p1", cardId: passGo });
+    const events = s.log.slice(logBefore).map((e) => e.event);
+    const passGoEvent = events.find((e) => e?.kind === "passGo");
+    // The client AnimationLayer reads `count` to size the "+N" overlay over
+    // the deck; if this contract drifts, the Pass Go feel silently regresses.
+    expect(passGoEvent).toBeDefined();
+    expect(passGoEvent?.actorId).toBe("p1");
+    expect(passGoEvent?.count).toBe(2);
+  });
 });
 
 // ---------------------------------------------------------------------------

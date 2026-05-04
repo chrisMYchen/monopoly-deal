@@ -65,6 +65,8 @@ type Overlay =
       color?: string;
       fromName: string;
       multiplier?: number;
+      label?: string;
+      glyph?: string;
     }
   | {
       id: string;
@@ -259,8 +261,31 @@ export function AnimationLayer() {
           break;
         }
         case "passGo": {
+          // Pass Go's defining beat is the +N cards arriving — the routine
+          // turn-start `draw` case (above) already pulses deck + hand for
+          // every draw, but the engine emits no separate `draw` event when
+          // Pass Go pulls cards (drawCardsInto runs silently). Without
+          // mirroring the cues here, the bonus is invisible: the actor sees
+          // the action card disappear and a same-as-anything `cardPlay`
+          // thwip, with the +2 cards just appearing in their hand.
           playSfx("cardPlay", isSelfActor ? 0.9 : 0.45);
           if (isSelfActor) haptics.tap();
+          pulseDeck();
+          if (e.actorId) pulseHandCount(e.actorId);
+          if (e.count) {
+            const r = rectOfDeck();
+            if (r) {
+              pushOverlay({
+                ttl: 850,
+                kind: "bigNumber",
+                text: `+${e.count}`,
+                x: r.left + r.width / 2,
+                y: r.top + r.height / 2,
+                tone: "good",
+                scale: 1.05,
+              });
+            }
+          }
           break;
         }
         case "reassignWild": {
@@ -329,6 +354,27 @@ export function AnimationLayer() {
         }
         case "setBroken": {
           // Quiet cue — no SFX (handled by the action that broke it).
+          break;
+        }
+        case "reshuffle": {
+          // Discard recycles into the deck. Without a cue this fires as a
+          // silent log line and the count flip on the deck is the only hint.
+          // SFX + deck pulse + a tiny "RECYCLED" float gives the moment
+          // weight; everyone needs to know cards are back in play.
+          playSfx("reshuffle", 0.85);
+          pulseDeck();
+          const r = rectOfDeck();
+          if (r) {
+            pushOverlay({
+              ttl: 1100,
+              kind: "bigNumber",
+              text: "↻ RECYCLED",
+              x: r.left + r.width / 2,
+              y: r.top + r.height / 2,
+              tone: "neutral",
+              scale: 1,
+            });
+          }
           break;
         }
         case "slyDeal": {
@@ -417,6 +463,21 @@ export function AnimationLayer() {
           playSfx("moneyPickup");
           if (isSelfActor) haptics.success();
           if (isSelfMultiTarget) haptics.bump();
+          // Birthday is a multi-target demand identical in shape to Rent
+          // (everyone owes the actor) and deserves the same dramatic banner.
+          // Without it, the iconic "$2M from EVERYONE" beat lands as just
+          // a SFX while Rent gets the full top-of-screen drama.
+          if (e.actorId) {
+            const fromName = playerNameById.get(e.actorId) ?? "Player";
+            pushOverlay({
+              ttl: 3450,
+              kind: "rentDemand",
+              amount: e.amount ?? 0,
+              fromName,
+              label: "BIRTHDAY",
+              glyph: "🎂",
+            });
+          }
           break;
         }
         case "rent": {
@@ -600,6 +661,8 @@ export function AnimationLayer() {
                 color={o.color}
                 fromName={o.fromName}
                 multiplier={o.multiplier}
+                label={o.label}
+                glyph={o.glyph}
               />
             );
           }
