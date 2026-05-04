@@ -275,7 +275,7 @@ function PlayingTableInner({
             const owned = sets.filter((color) => self.propertySets.some((g) => g.color === color && g.cardIds.length > 0));
             if (owned.length === 0) return; // no matching properties — engine would reject
             if (owned.length === 1) {
-              send({ type: "PLAY_RENT", playerId: selfId, cardId: card, color: owned[0]!, singleTargetId: overOpponentId });
+              proceedToRentDoublesOrSend(owned[0]!, overOpponentId, card);
             } else {
               setDraft({ kind: "rent-pick-color", cardId: card, allowedColors: owned, isWild: true });
             }
@@ -288,10 +288,14 @@ function PlayingTableInner({
   // Routes a rent draft into the optional Double The Rent picker. Skips the
   // picker when the player has no Double The Rent in hand, or doesn't have
   // enough plays left to pay even one extra play cost. The current draft's
-  // cardId is taken from `draft` (must be a rent-pick-* variant when called).
-  function proceedToRentDoublesOrSend(color: SetColor, singleTargetId?: string) {
-    if (!draft || (draft.kind !== "rent-pick-color" && draft.kind !== "rent-pick-target")) return;
-    const rentCardId = draft.cardId;
+  // cardId is taken from `draft` unless `overrideCardId` is provided (drag path).
+  function proceedToRentDoublesOrSend(color: SetColor, singleTargetId?: string, overrideCardId?: CardId) {
+    const rentCardId = overrideCardId ?? (
+      draft && (draft.kind === "rent-pick-color" || draft.kind === "rent-pick-target")
+        ? draft.cardId
+        : undefined
+    );
+    if (!rentCardId) return;
     const hasDouble = self.hand.some((cid) => {
       const c = cardById(cid);
       return c.kind === "action" && c.action === "doubleRent";
@@ -1008,13 +1012,8 @@ function nameOf(state: ProjectedGameState, pid: string): string {
 }
 
 function isCompleteForUI(group: import("@/engine/state").PropertySet, _state: ProjectedGameState): boolean {
-  // Re-import the engine helper inline to avoid extra import noise in this file.
-  // We compare against the standard def — same as engine `isComplete`.
-  const completeBy = {
-    brown: 2, lightBlue: 3, pink: 3, orange: 3, red: 3, yellow: 3,
-    green: 3, darkBlue: 2, railroad: 4, utility: 2,
-  } as const;
-  return group.cardIds.length >= completeBy[group.color as keyof typeof completeBy];
+  const def = SET_DEFS[group.color as keyof typeof SET_DEFS];
+  return !!def && group.cardIds.length >= def.complete;
 }
 
 function RestOfTable({

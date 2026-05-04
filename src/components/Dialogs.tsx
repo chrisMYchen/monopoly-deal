@@ -1003,7 +1003,7 @@ export function DiscardToLimitDialog({
   const can = selected.size === mustDiscard;
 
   return (
-    <Modal title={`Discard ${mustDiscard} cards`} testId="discard-dialog">
+    <Modal title="End of turn — keep 7" testId="discard-dialog">
       <div className="mb-3 flex flex-wrap gap-2">
         {hand.map((cid) => (
           <Card

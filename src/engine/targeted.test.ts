@@ -384,6 +384,42 @@ describe("PLAY_BIRTHDAY", () => {
     expect(s.pending).toBeNull();
     expect(getPlayer(s, "p1").bank.length).toBe(2);
   });
+
+  it("detects win the moment a payment completes a 3rd set, before remaining defenders pay", () => {
+    // Regression: checkWin used to bail early when s.pending !== null.
+    // After p2 pays, advancePaymentQueue sets awaitJustSayNo for p3 — the old
+    // guard caused the win to be missed until all defenders finished paying.
+    let s = newGame(3);
+    const bdCard = findCard((c) => c.kind === "action" && c.action === "birthday");
+    const browns = allOf((c) => c.kind === "property" && c.set === "brown");     // 2 cards (2/2)
+    const darkBlues = allOf((c) => c.kind === "property" && c.set === "darkBlue"); // 2 cards (2/2)
+    const utilities = allOf((c) => c.kind === "property" && c.set === "utility"); // 2 cards
+    const m1 = findCard((c) => c.kind === "money" && c.value === 1);
+
+    // p1: brown (complete) + darkBlue (complete) + utility (1/2, needs one more)
+    s = injectHand(s, "p1", [bdCard]);
+    s = injectPropertySets(s, "p1", [
+      { color: "brown", cardIds: browns },
+      { color: "darkBlue", cardIds: darkBlues },
+      { color: "utility", cardIds: [utilities[0]!] },
+    ]);
+    // p2: has the 2nd utility card in bank ($2 face value = covers birthday debt)
+    s = injectBank(s, "p2", [utilities[1]!]);
+    // p3: has $1 (still owes $2, would pay if the game continued)
+    s = injectBank(s, "p3", [m1]);
+
+    s = applyAction(s, { type: "DRAW_TURN_START", playerId: "p1" });
+    s = applyAction(s, { type: "PLAY_BIRTHDAY", playerId: "p1", cardId: bdCard });
+    s = applyAction(s, { type: "RESPOND_JSN", playerId: "p2", play: false });
+    expect(s.pending?.kind).toBe("awaitPayment");
+
+    // p2 pays with the utility card — completing p1's 3rd set → win should fire immediately
+    s = applyAction(s, { type: "PAY", playerId: "p2", cardIds: [utilities[1]!] });
+
+    expect(s.phase).toBe("ended");
+    expect(s.winnerId).toBe("p1");
+    expect(s.pending).toBeNull(); // no orphaned p3 payment window
+  });
 });
 
 // ---------------------------------------------------------------------------
