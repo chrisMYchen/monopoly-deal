@@ -523,13 +523,18 @@ export class Room {
 
   // Cloudflare DO Alarms callback. Fires when the deadline we set arrives.
   async alarm(): Promise<void> {
-    // currentDeadlineMs == null means this is the abandon-cleanup alarm (set
-    // in webSocketClose when the room went empty). Wipe state so the DO stops
-    // waking up for an orphaned room.
+    // Self-heal: any alarm firing on a room with no live sockets means the
+    // room is abandoned. Covers both the cleanup alarm armed in
+    // webSocketClose and pre-hibernation zombies whose disconnect events
+    // ran under the old socket.accept() path and never armed cleanup.
+    if (this.state.getWebSockets().length === 0) {
+      await this.state.storage.deleteAll();
+      return;
+    }
+
+    // Cleanup alarm armed but someone has since reconnected — handleJoin
+    // already cleared the alarm record; nothing more to do.
     if (this.currentDeadlineMs == null) {
-      if (this.state.getWebSockets().length === 0) {
-        await this.state.storage.deleteAll();
-      }
       return;
     }
 
