@@ -129,6 +129,7 @@ export function Card({
       <div className="relative">
         <motion.button
           type="button"
+          layout
           layoutId={`card-${cardId}`}
           onClick={onClick}
           onContextMenu={onContextMenu}
