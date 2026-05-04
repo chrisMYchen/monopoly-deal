@@ -20,6 +20,7 @@ import {
 import { attachAudioUnlock, playSfx } from "@/lib/animations/audio";
 import { haptics } from "@/lib/animations/haptics";
 import { useGameEvents } from "@/lib/animations/useGameDiff";
+import { distinctCompletedSets } from "@/engine/selectors";
 import type { LogEntry, LogEvent, PlayerId } from "@/engine/state";
 
 import { BigNumber, type BigNumberTone } from "./effects/BigNumber";
@@ -297,6 +298,32 @@ export function AnimationLayer() {
               playerId: e.actorId,
               color: e.color,
             });
+            // Threshold beat: if this completion brings the actor to exactly 2
+            // distinct sets, fire a separate "watch out — they're one away"
+            // moment. Skipped at 3 because the win event takes that beat.
+            const live = useGame.getState().state;
+            const actor = live?.players.find((p) => p.id === e.actorId);
+            if (actor && live?.phase === "playing") {
+              const sets = distinctCompletedSets(actor);
+              if (sets === 2) {
+                shakeTable();
+                playSfx("clash", isSelfActor ? 0.85 : 0.7);
+                if (isSelfActor) haptics.bump();
+                else haptics.clash();
+                const chip = rectOfPlayerCenter(e.actorId);
+                if (chip) {
+                  pushOverlay({
+                    ttl: 1300,
+                    kind: "bigNumber",
+                    text: "ONE FROM WINNING",
+                    x: chip.left + chip.width / 2,
+                    y: chip.top + chip.height / 2,
+                    tone: "bad",
+                    scale: 1.15,
+                  });
+                }
+              }
+            }
           }
           break;
         }
@@ -424,6 +451,42 @@ export function AnimationLayer() {
                 text: "BLOCKED!",
                 x: r.left + r.width / 2,
                 y: r.top + 8,
+                tone: "bad",
+              });
+            }
+          }
+          break;
+        }
+        case "debtForgiven": {
+          // Payer (actorId) was bankrupt; source (targetId) just played a card
+          // and got nothing. Without a beat here, ~14% of all rent/bday/debt
+          // resolutions silently fizzle and the rent-demand overlay floats off
+          // with no payoff. Give both sides a clear cue.
+          playSfx("clash", 0.5);
+          if (isSelfActor) haptics.tap(); // bankrupt: light cue, more meh than scolding
+          if (isSelfTarget) haptics.bump(); // source: "your card just burned"
+          if (e.actorId) {
+            const r = rectOfPlayerCenter(e.actorId);
+            if (r) {
+              pushOverlay({
+                ttl: 950,
+                kind: "bigNumber",
+                text: "BANKRUPT",
+                x: r.left + r.width / 2,
+                y: r.top + 8,
+                tone: "neutral",
+              });
+            }
+          }
+          if (e.targetId) {
+            const r = rectOfPlayerCenter(e.targetId);
+            if (r) {
+              pushOverlay({
+                ttl: 950,
+                kind: "bigNumber",
+                text: "$0 — NOTHING TO TAKE",
+                x: r.left + r.width / 2,
+                y: r.top + 24,
                 tone: "bad",
               });
             }

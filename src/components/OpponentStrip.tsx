@@ -78,6 +78,15 @@ export function OpponentStrip({
                       offline
                     </span>
                   )}
+                  {isThreat && (
+                    <span
+                      className="rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white"
+                      title={`${p.name} has 2 of 3 sets — break one or they win`}
+                      data-testid={`threat-badge-${p.id}`}
+                    >
+                      1 from winning
+                    </span>
+                  )}
                   <SetProgress count={completedSets} highlight />
                 </div>
                 <div className="flex items-center gap-2 text-xs text-[var(--color-ink-soft)]">
@@ -178,7 +187,7 @@ function OpponentChip({
         isActive
           ? "ring-2 ring-[var(--color-accent)]"
           : isThreat
-            ? "ring-1 ring-[var(--color-accent)]/45"
+            ? "rr-threat-glow"
             : "",
         targetMode
           ? "cursor-pointer hover:bg-[var(--color-accent-tint)]"

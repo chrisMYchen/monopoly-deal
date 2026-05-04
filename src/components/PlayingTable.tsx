@@ -962,8 +962,6 @@ function onClockPlayerIdFromProjected(state: ProjectedGameState): string | null 
         : (p.pendingDefenders[0] ?? null);
     case "awaitPayment":
       return p.payerId;
-    case "awaitWildAssignment":
-      return p.ownerId;
   }
 }
 
@@ -977,7 +975,7 @@ function describePending(state: ProjectedGameState): string {
     }`;
   if (p.kind === "awaitPayment")
     return `${nameOf(state, p.payerId)} owes $${p.amountOwed}M`;
-  return p.kind;
+  return "";
 }
 
 function describeDeclaration(d: any, state: ProjectedGameState): string {
@@ -1130,6 +1128,15 @@ function SelfArea({
           {isMyTurn && (
             <span className="rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-ink-on-dark)]">
               your turn
+            </span>
+          )}
+          {completedSets >= 2 && completedSets < 3 && (
+            <span
+              className="rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white"
+              title="You have 2 of 3 sets — one more wins"
+              data-testid="self-threat-badge"
+            >
+              1 from winning
             </span>
           )}
           <SetProgress count={completedSets} highlight />

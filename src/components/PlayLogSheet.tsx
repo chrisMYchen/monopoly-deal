@@ -228,7 +228,5 @@ function onClockPlayerId(state: ProjectedGameState): string | null {
         : (p.pendingDefenders[0] ?? null);
     case "awaitPayment":
       return p.payerId;
-    case "awaitWildAssignment":
-      return p.ownerId;
   }
 }

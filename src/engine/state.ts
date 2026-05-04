@@ -165,12 +165,6 @@ export type Pending =
       declaration: DeclaredAction;
       playCost: number;
       remainingDemands: { payerId: PlayerId; amountOwed: number }[];
-    }
-  | {
-      kind: "awaitWildAssignment";
-      cardId: CardId;
-      ownerId: PlayerId;
-      reason: "moved-during-payment";
     };
 
 // Room-scoped configuration. Set in lobby, frozen at START_GAME. Only field

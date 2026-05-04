@@ -24,8 +24,6 @@ export function onClockPlayerId(state: GameState): PlayerId | null {
         : (pending.pendingDefenders[0] ?? null);
     case "awaitPayment":
       return pending.payerId;
-    case "awaitWildAssignment":
-      return pending.ownerId;
   }
 }
 
@@ -60,12 +58,6 @@ export function autoActionFor(state: GameState): Action | null {
       if (!player) return null;
       const cardIds = pickAutoDiscard(player.hand, pending.mustDiscard);
       return { type: "DISCARD_TO_LIMIT", playerId, cardIds };
-    }
-
-    case "awaitWildAssignment": {
-      // Engine has no path to dispatch this currently (it's surfaced for UI
-      // only). Leaving null falls back to a no-op re-arm by the worker.
-      return null;
     }
   }
 }

@@ -231,6 +231,27 @@ body {
   animation: rr-turn-end-sweep-keys 0.65s ease-out 1;
 }
 
+/* Persistent danger glow on a player chip whose owner has reached 2 distinct
+ * complete sets — i.e., one set away from winning. Slow loop so it reads as
+ * "ongoing threat" rather than "thing just happened." Halo in the same red as
+ * .rr-pulse so the language is consistent (red = stakes), but always-on.
+ */
+@keyframes rr-threat-glow-keys {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(217, 36, 42, 0.55),
+      0 0 0 0 rgba(217, 36, 42, 0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(217, 36, 42, 0.85),
+      0 0 18px 4px rgba(217, 36, 42, 0.45);
+  }
+}
+.rr-threat-glow {
+  animation: rr-threat-glow-keys 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rr-pulse,
   .rr-edge-pulse,
@@ -238,7 +259,11 @@ body {
   .rr-shake,
   .rr-count-pulse,
   .rr-turn-glow,
-  .rr-turn-end-sweep {
+  .rr-turn-end-sweep,
+  .rr-threat-glow {
     animation: none;
+  }
+  .rr-threat-glow {
+    box-shadow: 0 0 0 2px rgba(217, 36, 42, 0.85);
   }
 }
