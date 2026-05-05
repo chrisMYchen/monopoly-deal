@@ -38,6 +38,7 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
   // sessionStorage marker so they can skip the prompt.
   const [name, setName] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [terminalError, setTerminalError] = useState<string | null>(null);
 
   useEffect(() => {
     // Dev/sim escape hatch: `?asName=Alice` forces a fresh identity for this
@@ -75,9 +76,13 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
       handlers: {
         onJoined: (info) => setJoined(info),
         onState: (s) => setState(s),
-        onError: (m) => {
-          setError(m);
-          setTimeout(() => setError(null), 4000);
+        onError: (m, permanent) => {
+          if (permanent) {
+            setTerminalError(m);
+          } else {
+            setError(m);
+            setTimeout(() => setError(null), 4000);
+          }
         },
         onStatus: (s) => setConnection(s),
       },
@@ -144,6 +149,16 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
   }
 
   if (!state) {
+    if (terminalError) {
+      return (
+        <main className="flex min-h-dvh items-center justify-center p-6 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <p className="font-semibold text-[var(--color-accent)]">{terminalError}</p>
+            <a href="/" className="text-sm underline opacity-60">Return home</a>
+          </div>
+        </main>
+      );
+    }
     const label =
       connection === "reconnecting"
         ? `Reconnecting to room ${roomCode}…`
@@ -152,11 +167,14 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
           : `Connecting to room ${roomCode}…`;
     return (
       <main className="flex min-h-dvh items-center justify-center p-6 text-center">
-        <div>
-          <p>{label}</p>
-          {connection === "reconnecting" && (
-            <p className="mt-2 text-sm opacity-70">Trying to restore your seat…</p>
-          )}
+        <div className="flex flex-col items-center gap-4">
+          <div>
+            <p>{label}</p>
+            {connection === "reconnecting" && (
+              <p className="mt-2 text-sm opacity-70">Trying to restore your seat…</p>
+            )}
+          </div>
+          <a href="/" className="text-sm underline opacity-40">Return home</a>
         </div>
       </main>
     );
