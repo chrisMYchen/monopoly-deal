@@ -133,7 +133,35 @@ export class Room {
       // Only restore the deadline for turn-timer alarms; cleanup alarms leave
       // currentDeadlineMs as null so alarm() can distinguish them.
       if (alarm && !isCleanup) this.currentDeadlineMs = alarm;
+
+      // Rebuild the in-memory sessions Map from hibernated WebSockets. Each
+      // socket carries a sessionId attachment; if a matching player exists in
+      // the rehydrated game, we re-establish the SessionInfo. Without this,
+      // the first message after a hibernation eviction fails with
+      // "session has no player" because handlers look sessions up by id.
+      // recentActionIds resets to empty — pre-existing behavior, the dedup
+      // ring buffer was never persisted.
+      this.restoreSessionsFromSockets();
     });
+  }
+
+  // Iterate hibernation-managed sockets and re-link each to its player slot.
+  // Safe to call multiple times: never overwrites a session entry that already
+  // exists.
+  private restoreSessionsFromSockets(): void {
+    for (const ws of this.state.getWebSockets()) {
+      const att = ws.deserializeAttachment() as SocketAttachment | null;
+      const sid = att?.sessionId;
+      if (!sid) continue;
+      if (this.sessions.has(sid)) continue;
+      const player = this.game.players.find((p) => p.id === sid);
+      if (!player) continue;
+      this.sessions.set(sid, {
+        sessionId: sid,
+        playerId: player.id,
+        recentActionIds: [],
+      });
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -392,6 +420,11 @@ export class Room {
   }
 
   private handleStart(sessionId: string, rngSeed?: number): void {
+    // Belt-and-suspenders: ensure the in-memory sessions Map reflects all
+    // hibernated sockets before we read from it. Constructor already does
+    // this on wake, but keep the lazy fallback so handlers stay safe even if
+    // the Map is ever cleared between messages.
+    if (!this.sessions.has(sessionId)) this.restoreSessionsFromSockets();
     if (sessionId !== this.hostSessionId) {
       throw new RuleError("only host can start the game");
     }
@@ -417,6 +450,9 @@ export class Room {
     action: Parameters<typeof applyAction>[1],
     clientActionId?: string,
   ): void {
+    // Same belt-and-suspenders as handleStart: rebuild the session map from
+    // hibernated sockets if this id is missing before declaring it absent.
+    if (!this.sessions.has(sessionId)) this.restoreSessionsFromSockets();
     const session = this.sessions.get(sessionId);
     if (!session?.playerId) throw new RuleError("session has no player");
 

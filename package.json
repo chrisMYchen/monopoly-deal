@@ -17,6 +17,7 @@
     "server:dev:inject": "DEV_INJECT=1 bun worker/src/dev-server.ts",
     "test:e2e": "bun worker/test/scenarios.ts",
     "test:reconnect": "bun worker/test/reconnect.ts",
+    "test:live": "bun worker/test/live.ts",
     "cloud:bootstrap": "bash scripts/cloud-bootstrap.sh",
     "dev:all": "bun scripts/dev-all.ts",
     "check:up": "bun scripts/check-up.ts",
