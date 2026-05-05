@@ -21,7 +21,9 @@ export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed"
 export type WsClientHandlers = {
   onJoined: (info: { playerId: PlayerId; isHost: boolean; roomCode: string }) => void;
   onState: (state: ProjectedGameState) => void;
-  onError: (message: string) => void;
+  // permanent=true: server rejected us for good (room full, game in progress);
+  // client should stop retrying and show a terminal error.
+  onError: (message: string, permanent?: boolean) => void;
   onStatus?: (status: ConnectionStatus) => void;
 };
 
@@ -204,9 +206,24 @@ export function connectRoom(cfg: WsConfig): WsClient {
           pendingActions.length = 0;
           cfg.handlers.onState(msg.state);
           break;
-        case "error":
-          cfg.handlers.onError(msg.message);
+        case "error": {
+          // Permanent errors: server will never let us in for this session.
+          // Stop the retry loop so the UI can show a terminal error state.
+          const permanent =
+            msg.message === "game already in progress" || msg.message === "room full";
+          if (permanent) {
+            closedByUser = true;
+            setStatus("closed");
+            try {
+              socket?.close(1000, "permanent error");
+            } catch {
+              // ignore
+            }
+            socket = null;
+          }
+          cfg.handlers.onError(msg.message, permanent);
           break;
+        }
         case "pong":
           if (pongTimer) {
             clearTimeout(pongTimer);
