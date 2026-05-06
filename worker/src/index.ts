@@ -73,8 +73,13 @@ type SessionInfo = {
 };
 
 // Attached to each hibernation-managed WebSocket so we can recover sessionId
-// after the DO wakes from eviction with no in-memory sockets map.
-type SocketAttachment = { sessionId: string };
+// after the DO wakes from eviction with no in-memory sockets map. `playerId`
+// is also stamped so a *reclaimed* seat (different sessionId, same player
+// slot) survives hibernation — without it, post-wake restore would assume
+// `sessionId === playerId` and fail to re-link the seat. Sockets stamped
+// before the reclaim refactor lack `playerId`; the legacy assumption still
+// holds for those.
+type SocketAttachment = { sessionId: string; playerId?: PlayerId };
 
 const RECENT_ACTIONS_PER_SESSION = 64;
 
@@ -154,7 +159,11 @@ export class Room {
       const sid = att?.sessionId;
       if (!sid) continue;
       if (this.sessions.has(sid)) continue;
-      const player = this.game.players.find((p) => p.id === sid);
+      // Prefer the stamped playerId (covers reclaimed seats where sessionId
+      // and playerId diverge). Fall back to the legacy "sessionId === playerId"
+      // assumption for sockets stamped before the reclaim refactor.
+      const pid = att.playerId ?? sid;
+      const player = this.game.players.find((p) => p.id === pid);
       if (!player) continue;
       this.sessions.set(sid, {
         sessionId: sid,
@@ -248,15 +257,25 @@ export class Room {
     const attachment = ws.deserializeAttachment() as SocketAttachment | null;
     const mySessionId = attachment?.sessionId;
     if (!mySessionId) return;
+    const myPlayerId = attachment?.playerId;
 
-    // Fast-reconnect guard: if another socket for this session already took
-    // over (analogous to the old `this.sockets.get(id) === socket` check),
-    // this close event is stale — skip cleanup.
-    const current = this.getSocketForSession(mySessionId);
-    if (current && current !== ws) return;
+    // Fast-reconnect guard: if another live socket holds the same sessionId
+    // (normal reconnect) OR the same playerId (a reclaim took over the seat),
+    // this close event is stale — skip cleanup so we don't mark the seat
+    // disconnected right after someone else reattached to it.
+    const replaced = this.state.getWebSockets().some((other) => {
+      if (other === ws) return false;
+      const oa = other.deserializeAttachment() as SocketAttachment | null;
+      if (!oa) return false;
+      if (oa.sessionId === mySessionId) return true;
+      return myPlayerId !== undefined && oa.playerId === myPlayerId;
+    });
+    if (replaced) return;
 
-    const session = this.sessions.get(mySessionId);
-    const playerId = session?.playerId;
+    // Resolve seat. Prefer the playerId stamped on the attachment so we mark
+    // the right seat even when this socket's sessionId no longer maps to one
+    // (e.g., reclaim removed the prior session record).
+    const playerId = myPlayerId ?? this.sessions.get(mySessionId)?.playerId;
     if (playerId) {
       this.game = produce(this.game, (draft) => {
         const player = draft.players.find((p) => p.id === playerId);
@@ -292,18 +311,6 @@ export class Room {
   // --- message handlers ----------------------------------------------------
 
   private async handleJoin(ws: WebSocket, msg: Extract<ClientToServer, { type: "join" }>): Promise<void> {
-    const oldSocket = this.getSocketForSession(msg.sessionId);
-    if (oldSocket && oldSocket !== ws) {
-      // Same session re-attaches: close the old socket.
-      try {
-        oldSocket.close(1000, "replaced");
-      } catch {
-        // ignore
-      }
-    }
-    // Stamp the sessionId on this socket so we can recover it after hibernation.
-    ws.serializeAttachment({ sessionId: msg.sessionId } satisfies SocketAttachment);
-
     // Cancel any pending abandon-cleanup alarm — a player has reconnected.
     if (this.currentDeadlineMs == null) {
       try {
@@ -315,9 +322,9 @@ export class Room {
     }
 
     let session = this.sessions.get(msg.sessionId);
-    // Lazy-register the session if the game already knows about a player with
-    // this id — covers DO restart / post-recovery scenarios where the in-memory
-    // sessions Map was cleared but the game state persisted.
+
+    // Lazy-register: the game already has a player with this exact id (most
+    // common after DO restart / post-hibernation rebuild).
     if (!session) {
       const existingPlayer = this.game.players.find((p) => p.id === msg.sessionId);
       if (existingPlayer) {
@@ -333,6 +340,47 @@ export class Room {
         });
       }
     }
+
+    // Reclaim-by-name: this sessionId is unknown AND no player slot has it,
+    // but exactly one *disconnected* player matches the joining display name.
+    // Bind the new sessionId to that seat. Covers users whose persisted id
+    // was wiped (cleared storage, opened the link in a fresh tab/device) and
+    // would otherwise be locked out of an in-progress game.
+    //
+    // Safety: requires the seat to be currently disconnected (can't steal a
+    // live seat) and exactly one match (refuses to choose between same-named
+    // disconnected players).
+    if (!session) {
+      const target = matchReclaimableSeat(this.game.players, msg.name);
+      if (target) {
+        const reclaimedPid = target.id;
+        // Drop any stale session records pointing at this seat — a prior
+        // sessionId is no longer the live identity. While doing so, capture
+        // whether any of them was the host so we can re-anchor host below.
+        let seatWasHost = this.hostSessionId === reclaimedPid;
+        for (const [sid, info] of Array.from(this.sessions)) {
+          if (info.playerId === reclaimedPid) {
+            if (this.hostSessionId === sid) seatWasHost = true;
+            this.sessions.delete(sid);
+          }
+        }
+        session = {
+          sessionId: msg.sessionId,
+          playerId: reclaimedPid,
+          recentActionIds: [],
+        };
+        this.sessions.set(msg.sessionId, session);
+        if (seatWasHost) {
+          this.hostSessionId = msg.sessionId;
+          this.persistHost();
+        }
+        this.game = produce(this.game, (draft) => {
+          const player = draft.players.find((p) => p.id === reclaimedPid);
+          if (player) player.connected = true;
+        });
+      }
+    }
+
     if (!session) {
       // New session: create a player slot if game is still in lobby; otherwise
       // we only honor reconnects to existing sessions.
@@ -361,16 +409,38 @@ export class Room {
       session = { sessionId: msg.sessionId, playerId, recentActionIds: [] };
       this.sessions.set(msg.sessionId, session);
     } else {
-      // Reconnect: mark connected and resume the turn timer if game is active.
+      // Reconnect (same sessionId path): mark connected.
       const sessId = session.playerId;
       this.game = produce(this.game, (draft) => {
         const player = draft.players.find((p) => p.id === sessId);
         if (player) player.connected = true;
       });
-      void this.armOrClearAlarm();
+    }
+
+    // Stamp the attachment now that session.playerId is known. Including the
+    // playerId lets post-hibernation restore re-link reclaimed seats.
+    ws.serializeAttachment({
+      sessionId: msg.sessionId,
+      playerId: session.playerId!,
+    } satisfies SocketAttachment);
+
+    // Kick any *other* live socket holding this sessionId or this seat — both
+    // a same-session reconnect and a reclaim collapse to one socket per seat.
+    for (const other of this.state.getWebSockets()) {
+      if (other === ws) continue;
+      const oa = other.deserializeAttachment() as SocketAttachment | null;
+      if (!oa) continue;
+      if (oa.sessionId === msg.sessionId || oa.playerId === session.playerId) {
+        try {
+          other.close(1000, "replaced");
+        } catch {
+          // ignore
+        }
+      }
     }
 
     this.persistGame();
+    void this.armOrClearAlarm();
 
     const isHost = this.hostSessionId === msg.sessionId;
     this.send(ws, {
@@ -638,4 +708,25 @@ export class Room {
   private persistHost(): void {
     void this.state.storage.put(STORAGE_KEY_HOST, this.hostSessionId ?? "");
   }
+}
+
+// Reclaim eligibility: returns the unique disconnected player whose
+// (case-insensitive, trimmed) name matches the joining display name, or null
+// if zero or more-than-one match. Trimming + lowercasing tolerates routine
+// formatting noise without permitting impersonation by close-but-not-equal
+// names.
+function matchReclaimableSeat(
+  players: readonly { id: PlayerId; name: string; connected: boolean }[],
+  name: string,
+): { id: PlayerId; name: string; connected: boolean } | null {
+  const needle = name.trim().toLowerCase();
+  if (!needle) return null;
+  let match: { id: PlayerId; name: string; connected: boolean } | null = null;
+  for (const p of players) {
+    if (p.connected) continue;
+    if (p.name.trim().toLowerCase() !== needle) continue;
+    if (match) return null; // ambiguous — refuse rather than guess
+    match = p;
+  }
+  return match;
 }

@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/Button";
 import { Wordmark } from "@/components/ui/Wordmark";
 import { getWorkerOrigin } from "@/lib/config";
 import {
-  getOrCreateSessionId,
   getStoredName,
   markNameFreshlyConfirmed,
   setStoredName,
@@ -22,8 +21,6 @@ export default function Home() {
 
   useEffect(() => {
     setName(getStoredName());
-    // Touch session id so it exists by the time we navigate.
-    getOrCreateSessionId();
   }, []);
 
   const onCreate = async () => {

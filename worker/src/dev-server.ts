@@ -134,18 +134,10 @@ const server = Bun.serve({
         switch (msg.type) {
           case "join": {
             data.sessionId = msg.sessionId;
-            const previous = room.sockets.get(msg.sessionId);
-            if (previous && previous !== ws) {
-              try {
-                previous.close(1000, "replaced");
-              } catch {}
-            }
-            room.sockets.set(msg.sessionId, ws);
             let session = room.sessions.get(msg.sessionId);
-            // If we don't have a session record but the game already has a
-            // player with this exact id, lazily register the session — covers
-            // the post-inject reconnect path AND any session restored from
-            // refresh after server reload.
+
+            // Lazy-register: a player with this exact id already exists in
+            // the game (post-inject reconnect, server reload, etc.).
             if (!session) {
               const existingPlayer = room.game.players.find((p) => p.id === msg.sessionId);
               if (existingPlayer) {
@@ -162,9 +154,39 @@ const server = Bun.serve({
                 });
               }
             }
+
+            // Reclaim-by-name: unknown sessionId but exactly one disconnected
+            // player matches the display name. Mirrors the worker's logic so
+            // local QA exercises the same code path. See worker/src/index.ts.
+            if (!session) {
+              const target = matchReclaimableSeat(room.game.players, msg.name);
+              if (target) {
+                const reclaimedPid = target.id;
+                let seatWasHost = room.hostSessionId === reclaimedPid;
+                for (const [sid, info] of Array.from(room.sessions)) {
+                  if (info.playerId === reclaimedPid) {
+                    if (room.hostSessionId === sid) seatWasHost = true;
+                    room.sessions.delete(sid);
+                    room.sockets.delete(sid);
+                  }
+                }
+                session = {
+                  sessionId: msg.sessionId,
+                  playerId: reclaimedPid,
+                  recentActionIds: [],
+                };
+                room.sessions.set(msg.sessionId, session);
+                if (seatWasHost) room.hostSessionId = msg.sessionId;
+                room.game = produce(room.game, (draft) => {
+                  const player = draft.players.find((p) => p.id === reclaimedPid);
+                  if (player) player.connected = true;
+                });
+              }
+            }
+
             if (!session) {
               if (room.game.phase !== "lobby") {
-                return send(ws, { type: "error", message: "game in progress" });
+                return send(ws, { type: "error", message: "game already in progress" });
               }
               if (room.game.players.length >= 5) {
                 return send(ws, { type: "error", message: "room full" });
@@ -191,6 +213,26 @@ const server = Bun.serve({
                 if (player) player.connected = true;
               });
             }
+
+            // Stash playerId on the connection's data so the close handler
+            // can identify the seat even after reclaim drops the session
+            // record this socket originally had.
+            (data as any).playerId = session.playerId;
+
+            // Kick any other socket holding this sessionId or the same seat.
+            for (const [sid, other] of Array.from(room.sockets)) {
+              if (other === ws) continue;
+              const od = (other as any).data as { sessionId: string | null; playerId?: string };
+              if (sid === msg.sessionId || od?.playerId === session.playerId) {
+                try {
+                  other.close(1000, "replaced");
+                } catch {}
+                room.sockets.delete(sid);
+              }
+            }
+            room.sockets.set(msg.sessionId, ws);
+
+            armOrClearAlarm(room);
             const isHost = room.hostSessionId === msg.sessionId;
             send(ws, {
               type: "joined",
@@ -264,24 +306,35 @@ const server = Bun.serve({
       }
     },
     close(ws: any) {
-      const data: { code: string; sessionId: string | null } = (ws as any).data;
+      const data: { code: string; sessionId: string | null; playerId?: string } =
+        (ws as any).data;
       if (!data.sessionId) return;
       const room = rooms.get(data.code);
       if (!room) return;
-      // Only delete this socket if it's the same one we tracked (to handle
-      // the replace-on-rejoin case cleanly).
+      // Stale-close guard mirrors the worker: don't mark the seat
+      // disconnected if a newer socket already owns this sessionId or has
+      // reclaimed the seat (different sessionId, same playerId).
+      const replaced = Array.from(room.sockets.values()).some((other) => {
+        if (other === ws) return false;
+        const od = (other as any).data as { sessionId: string | null; playerId?: string };
+        if (!od) return false;
+        if (od.sessionId === data.sessionId) return true;
+        return data.playerId !== undefined && od.playerId === data.playerId;
+      });
+      if (replaced) return;
+
       if (room.sockets.get(data.sessionId) === ws) {
         room.sockets.delete(data.sessionId);
-        const session = room.sessions.get(data.sessionId);
-        const playerId = session?.playerId;
-        if (playerId) {
-          room.game = produce(room.game, (draft) => {
-            const player = draft.players.find((p) => p.id === playerId);
-            if (player) player.connected = false;
-          });
-        }
-        broadcast(room);
       }
+      const playerId =
+        data.playerId ?? room.sessions.get(data.sessionId)?.playerId;
+      if (playerId) {
+        room.game = produce(room.game, (draft) => {
+          const player = draft.players.find((p) => p.id === playerId);
+          if (player) player.connected = false;
+        });
+      }
+      broadcast(room);
     },
   },
 });
@@ -376,6 +429,23 @@ function send(socket: any, msg: ServerToClient): void {
   } catch {
     // ignore
   }
+}
+
+// Reclaim eligibility — see worker/src/index.ts for the canonical doc.
+function matchReclaimableSeat(
+  players: readonly { id: PlayerId; name: string; connected: boolean }[],
+  name: string,
+): { id: PlayerId; name: string; connected: boolean } | null {
+  const needle = name.trim().toLowerCase();
+  if (!needle) return null;
+  let match: { id: PlayerId; name: string; connected: boolean } | null = null;
+  for (const p of players) {
+    if (p.connected) continue;
+    if (p.name.trim().toLowerCase() !== needle) continue;
+    if (match) return null;
+    match = p;
+  }
+  return match;
 }
 
 console.log(`[dev-server] listening on http://localhost:${server.port}`);
