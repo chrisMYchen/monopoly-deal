@@ -106,8 +106,14 @@ function rectOfSetGroup(playerId: string, color: string): DOMRect | null {
 }
 
 function rectOfDeck(): DOMRect | null {
-  const el = document.querySelector<HTMLElement>(`[data-rr-deck]`);
-  return el?.getBoundingClientRect() ?? null;
+  // Two elements may carry data-rr-deck: a tiny chip in the mobile cockpit
+  // and the full deck card on the desktop felt. Only one is visible per
+  // viewport; pick the rendered one so animations fly from the right anchor.
+  const els = document.querySelectorAll<HTMLElement>(`[data-rr-deck]`);
+  for (const el of els) {
+    if (el.offsetParent !== null) return el.getBoundingClientRect();
+  }
+  return els[0]?.getBoundingClientRect() ?? null;
 }
 
 function shakeTable(): void {
@@ -132,12 +138,20 @@ function pulseHandCount(playerId: string): void {
 }
 
 function pulseDeck(): void {
-  const el = document.querySelector<HTMLElement>(`[data-rr-deck]`);
+  // Pulse whichever deck anchor is visible — mobile chip or desktop card.
+  const els = document.querySelectorAll<HTMLElement>(`[data-rr-deck]`);
+  let el: HTMLElement | null = null;
+  for (const e of els) {
+    if (e.offsetParent !== null) {
+      el = e;
+      break;
+    }
+  }
   if (!el) return;
   el.classList.remove("rr-count-pulse");
   void el.offsetWidth;
   el.classList.add("rr-count-pulse");
-  window.setTimeout(() => el.classList.remove("rr-count-pulse"), 600);
+  window.setTimeout(() => el!.classList.remove("rr-count-pulse"), 600);
 }
 
 function dimEnderChip(playerId: string): void {
