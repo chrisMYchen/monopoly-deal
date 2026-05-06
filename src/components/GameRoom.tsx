@@ -6,6 +6,7 @@ import { getWorkerOrigin } from "@/lib/config";
 import { setBridgeClient } from "@/lib/devBridge";
 import {
   consumeFreshNameMarker,
+  getOrCreateDevSessionId,
   getOrCreateSessionId,
   getStoredName,
   setStoredName,
@@ -66,7 +67,16 @@ export function GameRoom({ roomCode }: { roomCode: string }) {
 
   useEffect(() => {
     if (!name) return;
-    const sessionId = getOrCreateSessionId();
+    // Prefer the per-room durable id so back/forward, tab close, and mobile
+    // memory eviction all keep the seat. The dev/sim asName escape hatch
+    // gets a per-tab id instead so N tabs = N players.
+    let sessionId = getOrCreateSessionId(roomCode);
+    if (process.env.NODE_ENV !== "production") {
+      const asName = new URLSearchParams(window.location.search)
+        .get("asName")
+        ?.trim();
+      if (asName) sessionId = getOrCreateDevSessionId(roomCode, asName);
+    }
     setConnection("connecting");
     const client = connectRoom({
       workerOrigin: getWorkerOrigin(),

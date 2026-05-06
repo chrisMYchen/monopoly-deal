@@ -1,25 +1,90 @@
-// Browser-local identity. Each player has a stable session id stored in
-// `sessionStorage` so:
-//   - Refreshing the tab preserves identity (reconnect path works)
-//   - Opening a SECOND tab gets a NEW identity (so two tabs = two players,
-//     and localStorage isn't a shared single-identity bottleneck)
-// The display name lives in `localStorage` for convenience (auto-fills on the
-// home page across tabs).
+// Browser-local identity. Each player has a session id the worker uses to
+// re-attach them to their seat across reconnects.
+//
+// Storage:
+//   - Default: localStorage, keyed PER ROOM CODE (`rr.session.{CODE}`). This
+//     survives tab close, in-app browser back-out, and mobile memory eviction
+//     — sessionStorage would not. Scoping by room means opening a *different*
+//     room in a second tab still gives a separate identity (as before); only
+//     re-entering the *same* room collapses to one identity, which the worker
+//     handles by closing the older socket on rejoin.
+//   - Dev escape hatch (`?asName=Alice`): per-tab id keyed by name in
+//     sessionStorage so the gstack/sim harness can spawn N tabs as N players.
+//
+// The display name lives in `localStorage` so the home page auto-fills it
+// across tabs.
 
 const NAME_KEY = "rr.name";
-const SESSION_KEY = "rr.sessionId";
 // One-shot marker the home page sets right before navigating into /r/?code=X
 // so the joiner page knows the stored name was *just* picked here and can skip
 // the confirmation prompt. Invitees arriving via a shared link don't have it,
 // so they always see the name confirmation step.
 const FRESH_NAME_KEY = "rr.nameFreshlyConfirmed";
 
-export function getOrCreateSessionId(): string {
+const SESSION_KEY_PREFIX = "rr.session.";
+// Legacy single-id key (sessionStorage). Read once for migration so an
+// in-flight player keeps their seat across the deploy that introduces this
+// per-room scheme. Never written.
+const LEGACY_SESSION_KEY = "rr.sessionId";
+
+function sessionKeyForRoom(roomCode: string): string {
+  return SESSION_KEY_PREFIX + roomCode.toUpperCase();
+}
+
+// Returns the stable session id for `roomCode`, creating one if absent.
+// Survives tab close and mobile memory pressure.
+export function getOrCreateSessionId(roomCode: string): string {
   if (typeof window === "undefined") return "";
-  let id = window.sessionStorage.getItem(SESSION_KEY);
+  const code = roomCode.toUpperCase();
+  if (!code) return "";
+  const key = sessionKeyForRoom(code);
+
+  let id: string | null = null;
+  try {
+    id = window.localStorage.getItem(key);
+  } catch {
+    // localStorage disabled (private mode quirks, storage quota, etc.)
+  }
+  if (!id) {
+    // One-shot migration: a player mid-game when this code ships still has
+    // their old tab-scoped id in sessionStorage. Adopt it once so they don't
+    // get bounced.
+    try {
+      const legacy = window.sessionStorage.getItem(LEGACY_SESSION_KEY);
+      if (legacy) id = legacy;
+    } catch {
+      // ignore
+    }
+  }
+  if (!id) id = newSessionId();
+  try {
+    window.localStorage.setItem(key, id);
+  } catch {
+    // ignore — id is still returned, just not persisted
+  }
+  return id;
+}
+
+// Dev/sim only: a per-tab session id keyed by `asName` so multiple tabs of
+// the same room (spawned by the gstack harness) act as distinct players.
+// Lives in sessionStorage so it dies with the tab, which is what the harness
+// expects.
+export function getOrCreateDevSessionId(roomCode: string, asName: string): string {
+  if (typeof window === "undefined") return "";
+  const key = `rr.devSession.${roomCode.toUpperCase()}.${asName}`;
+  let id: string | null = null;
+  try {
+    id = window.sessionStorage.getItem(key);
+  } catch {
+    // ignore
+  }
   if (!id) {
     id = newSessionId();
-    window.sessionStorage.setItem(SESSION_KEY, id);
+    try {
+      window.sessionStorage.setItem(key, id);
+    } catch {
+      // ignore
+    }
   }
   return id;
 }
@@ -47,10 +112,17 @@ export function setStoredName(name: string): void {
 }
 
 // Reset per-room session — used when explicitly leaving so we don't re-attach
-// to a room we already left.
-export function resetSession(): void {
+// to a room we already left. Currently unused; kept for future "leave seat"
+// affordances.
+export function resetSession(roomCode: string): void {
   if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(SESSION_KEY, newSessionId());
+  const code = roomCode.toUpperCase();
+  if (!code) return;
+  try {
+    window.localStorage.setItem(sessionKeyForRoom(code), newSessionId());
+  } catch {
+    // ignore
+  }
 }
 
 export function markNameFreshlyConfirmed(): void {
