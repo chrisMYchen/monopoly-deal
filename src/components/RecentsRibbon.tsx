@@ -86,7 +86,9 @@ export function RecentsRibbon({
       aria-label="Open play log"
       data-testid="recents-ribbon"
       className={[
-        "surface-tint sm:hidden w-full overflow-hidden rounded-xl px-3 py-1.5 text-left transition-colors",
+        // Bottom half of the cockpit on mobile — top corners square so it
+        // butts flush against the turn banner above (they read as one unit).
+        "surface-tint sm:hidden w-full overflow-hidden rounded-b-2xl rounded-t-none px-3 py-1.5 text-left transition-colors",
         targeted ? "ring-2 ring-[var(--color-accent)]" : "",
       ].join(" ")}
     >

@@ -2,12 +2,18 @@
 
 import { useState } from "react";
 
-import { Card } from "./Card";
+import { Card, type CardSize } from "./Card";
 import type { CardId } from "@/engine/cards";
 
 // Center discard pile that expands to show every card discarded so far.
 // Experts use this to count what's been spent (e.g., how many JSNs left in
 // the deck). Beginners see what was just played.
+
+const EMPTY_PLACEHOLDER: Record<CardSize, string> = {
+  sm: "h-[88px] w-[64px]",
+  md: "h-[140px] w-[100px]",
+  lg: "h-[224px] w-[160px]",
+};
 
 export function DiscardPile({
   topCardId,
@@ -17,14 +23,34 @@ export function DiscardPile({
   // view shows just the top card with a placeholder note. Future enhancement:
   // surface the full pile in projected state when needed.
   fullPile,
+  size = "md",
+  // Render as a small "🃏 5" chip instead of a card. Used in the mobile
+  // cockpit so the felt's vertical budget goes to the player's hand and
+  // properties — the discard top is already echoed in the recents ribbon.
+  variant = "card",
 }: {
   topCardId: CardId | null;
   count: number;
   fullPile?: CardId[];
+  size?: CardSize;
+  variant?: "card" | "chip";
 }) {
   const [open, setOpen] = useState(false);
-  return (
-    <>
+  const trigger =
+    variant === "chip" ? (
+      <button
+        type="button"
+        onClick={() => count > 0 && setOpen(true)}
+        disabled={count === 0}
+        className="inline-flex h-6 items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 text-xs font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-50"
+        aria-label={count > 0 ? `Discard pile, ${count} cards — tap to view` : "Discard pile, empty"}
+        title={count > 0 ? "View discard pile" : "Discard pile is empty"}
+        data-testid="discard-chip"
+      >
+        <span aria-hidden>🃏</span>
+        <span className="tabular">{count}</span>
+      </button>
+    ) : (
       <button
         type="button"
         onClick={() => count > 0 && setOpen(true)}
@@ -33,9 +59,11 @@ export function DiscardPile({
         aria-label={count > 0 ? `Discard pile, ${count} cards` : "Discard pile, empty"}
       >
         {topCardId ? (
-          <Card cardId={topCardId} size="md" animated={false} />
+          <Card cardId={topCardId} size={size} animated={false} />
         ) : (
-          <div className="flex h-[140px] w-[100px] items-center justify-center rounded-md border border-dashed border-white/20 text-xs opacity-40">
+          <div
+            className={`flex items-center justify-center rounded-md border border-dashed border-white/20 text-[10px] opacity-40 ${EMPTY_PLACEHOLDER[size]}`}
+          >
             empty
           </div>
         )}
@@ -43,6 +71,10 @@ export function DiscardPile({
           Discard {count > 0 && `· ${count}`}
         </div>
       </button>
+    );
+  return (
+    <>
+      {trigger}
       {open && (
         <div
           className="fixed inset-0 z-50 flex flex-col justify-end bg-[var(--color-felt)]/55 backdrop-blur-sm sm:items-center sm:justify-center sm:p-8"

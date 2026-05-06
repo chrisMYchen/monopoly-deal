@@ -62,6 +62,25 @@ import { colorForPlayerId } from "@/lib/playerColor";
 import { ACTION_DESCRIPTIONS, ACTION_LABELS } from "@/engine/cards";
 import { distinctCompletedSets, rentForGroup as rentForUI } from "@/engine/selectors";
 
+// Mobile-vs-desktop layout switch. Tailwind's `sm:` breakpoint is 640px;
+// match it here so JS-driven sizing decisions agree with CSS-driven ones.
+// useState's lazy initializer runs on the client (window is defined),
+// so the first paint after hydration is already viewport-correct — no flash.
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(max-width: 639px)").matches;
+  });
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
+
 // Draft state for a multi-step action a player is constructing.
 type ActionDraft =
   | null
@@ -888,7 +907,7 @@ function Wrapper({ state, children }: { state: ProjectedGameState; children: Rea
         className="flex min-h-dvh flex-col gap-2 p-2 pb-40 sm:p-4 sm:pb-40"
       >
         <TableChrome />
-        <div className="sticky top-2 z-30 flex flex-col gap-1.5">
+        <div className="sticky top-2 z-30 flex flex-col gap-0 sm:gap-1.5">
           <TopBanner state={state} onOpenPlayLog={openPlayLog} />
           <RecentsRibbon state={state} selfId={state.selfId} onOpen={openPlayLog} />
         </div>
@@ -970,6 +989,9 @@ function TopBanner({
       // banner and the recents ribbon stick together.
       className={[
         "surface-inked rounded-2xl px-3 py-2 text-center text-sm transition-colors",
+        // On mobile we round only the top so it visually butts up against
+        // the recents ribbon below — the two read as one cockpit unit.
+        "rounded-b-none sm:rounded-b-2xl",
         isMyTurn ? "rr-pulse" : "",
       ].join(" ")}
       data-testid="turn-banner"
@@ -986,6 +1008,16 @@ function TopBanner({
           hasDrawn={state.hasDrawnThisTurn}
           dim={!isMyTurn}
         />
+        {/* Mobile-only deck + discard chips — replace the giant Center cards. */}
+        <span className="sm:hidden inline-flex items-center gap-1">
+          <DeckChip count={state.drawPileCount} />
+          <DiscardPile
+            topCardId={state.discardTopCardId}
+            count={state.discardCount}
+            fullPile={state.discardPile}
+            variant="chip"
+          />
+        </span>
         <FxToggles />
         {onOpenPlayLog && (
           <button
@@ -993,15 +1025,42 @@ function TopBanner({
             onClick={onOpenPlayLog}
             aria-label="Open play log"
             data-testid="open-play-log"
-            className="sm:hidden inline-flex min-h-11 items-center gap-1 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest opacity-80 transition hover:bg-white/10"
+            className="sm:hidden inline-flex h-6 items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 text-xs font-medium text-white/80 transition hover:bg-white/10"
           >
             <span aria-hidden>📜</span>
-            Log
+            <span>Log</span>
           </button>
         )}
       </div>
       {pendingMsg && <div className="text-xs opacity-70">{pendingMsg}</div>}
     </div>
+  );
+}
+
+// Small "🎴 84" pill that anchors deck-fly animations on mobile (the visible
+// Center deck-card is hidden there to free vertical felt). Reshuffle warning
+// rendered inline as a subtle ring color shift.
+function DeckChip({ count }: { count: number }) {
+  const lowDeck = count > 0 && count <= 5;
+  return (
+    <span
+      data-rr-deck
+      className={[
+        "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs font-medium tabular",
+        lowDeck
+          ? "border-[var(--color-warning)]/60 bg-[var(--color-warning)]/20 text-amber-100 shadow-[0_0_10px_rgba(251,191,36,0.25)]"
+          : "border-[var(--color-accent)]/55 bg-[var(--color-accent)]/25 text-white/90",
+      ].join(" ")}
+      title={
+        lowDeck
+          ? "Discard reshuffles into draw soon"
+          : `${count} cards in draw pile`
+      }
+      aria-label={`Deck: ${count} cards${lowDeck ? ", reshuffle soon" : ""}`}
+    >
+      <span aria-hidden>🎴</span>
+      <span>{count}</span>
+    </span>
   );
 }
 
@@ -1106,9 +1165,12 @@ function RestOfTable({
 }
 
 function Center({ state }: { state: ProjectedGameState }) {
+  // Desktop-only on the felt — mobile gets compact chips folded into the
+  // turn banner instead, freeing ~150px of vertical budget. The visible card
+  // representation is a desktop affordance where there's room for it.
   return (
     <section
-      className="flex items-end justify-center gap-6 py-3"
+      className="hidden sm:flex items-end justify-center gap-6 py-2"
       data-testid="deck-discard"
       aria-label="Deck and discard pile"
     >
@@ -1130,6 +1192,7 @@ function Center({ state }: { state: ProjectedGameState }) {
           topCardId={state.discardTopCardId}
           count={state.discardCount}
           fullPile={state.discardPile}
+          size="md"
         />
       </div>
     </section>
@@ -1163,6 +1226,9 @@ function SelfArea({
   }
   const [bankOpen, setBankOpen] = useState(false);
   const bankTotal = self.bank.reduce((s, cid) => s + bankValue(cid), 0);
+  // Mobile gets compact (sm) property cards so 5+ fit per row instead of 2.
+  // Tap-to-inspect (long-press / right-click) still surfaces full details.
+  const isMobile = useIsMobile();
   return (
     <section
       data-player-id={self.id}
@@ -1228,6 +1294,7 @@ function SelfArea({
       >
         <PropertySetsView
           propertySets={self.propertySets}
+          compact={isMobile}
           onCardClick={onPropertyCardClick && isMyTurn ? onPropertyCardClick : undefined}
           selectableCardIds={wildIds}
           flashingCardIds={flashingCardIds}
