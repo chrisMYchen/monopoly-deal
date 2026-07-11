@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "./ui/Button";
 import { Card } from "./Card";
@@ -9,6 +9,7 @@ import {
   ACTION_DESCRIPTIONS,
   ALL_COLORS,
   SET_DEFS,
+  SET_LABEL,
   STANDARD_COLORS,
   bankValueOf,
   cardById,
@@ -19,6 +20,8 @@ import {
 import type { ProjectedGameState, ProjectedPlayer } from "@/engine/project";
 import type { DeclaredAction, LogEntry } from "@/engine/state";
 import { isComplete } from "@/engine/reduce";
+import { completesSetForReceiver, paymentCompletesSets, suggestPayment } from "@/engine/payment";
+import { distinctCompletedSets } from "@/engine/selectors";
 import { playSfx } from "@/lib/animations/audio";
 import { haptics } from "@/lib/animations/haptics";
 
@@ -574,8 +577,57 @@ export function RentDoublePicker({
 // PaymentDialog — pick cards from your bank/properties totaling >= owed (or all)
 // ---------------------------------------------------------------------------
 
+// Kebab-case CSS var for a set color, e.g. lightBlue → --color-set-light-blue.
+function setColorVar(color: SetColor): string {
+  return `var(--color-set-${color.replace(/([A-Z])/g, "-$1").toLowerCase()})`;
+}
+
+// Compact "who you're paying" strip: the demander's set progress and bank
+// total. All public information — the modal was just hiding the table.
+function PayeeSummary({ payee }: { payee: ProjectedPlayer }) {
+  const bankTotal = payee.bank.reduce((s, cid) => s + bankValueOf(cardById(cid)), 0);
+  const completed = distinctCompletedSets(payee);
+  return (
+    <div
+      className="mb-3 rounded border border-[var(--color-ink)]/15 bg-[var(--color-tint)] px-2.5 py-2"
+      data-testid="payment-payee-summary"
+    >
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
+          Paying {payee.name}
+        </span>
+        <span className="text-[11px] text-[var(--color-ink-soft)]">
+          Bank <span className="tabular font-semibold text-[var(--color-ink)]">${bankTotal}M</span>
+          {" · "}
+          <span className={completed >= 2 ? "font-bold text-[var(--color-accent)]" : "font-semibold text-[var(--color-ink)]"}>
+            {completed}/3 sets
+          </span>
+        </span>
+      </div>
+      {payee.propertySets.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {payee.propertySets.map((g) => {
+            const complete = g.cardIds.length >= SET_DEFS[g.color].complete;
+            return (
+              <span
+                key={g.color}
+                className={`tabular rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white ${complete ? "ring-2 ring-[var(--color-accent)]" : ""}`}
+                style={{ backgroundColor: setColorVar(g.color) }}
+                title={`${SET_LABEL[g.color]}: ${g.cardIds.length} of ${SET_DEFS[g.color].complete}${complete ? " — complete" : ""}`}
+              >
+                {g.cardIds.length}/{SET_DEFS[g.color].complete}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PaymentDialog({
   payer,
+  payee,
   amountOwed,
   reason,
   state,
@@ -583,6 +635,9 @@ export function PaymentDialog({
   onSubmit,
 }: {
   payer: ProjectedPlayer;
+  // The demander. Used for the holdings summary and the danger badges on
+  // property cards whose surrender would complete one of their sets.
+  payee?: ProjectedPlayer;
   amountOwed: number;
   reason?: string;
   // For inline rendering of the triggering log entry above the prompt.
@@ -590,7 +645,13 @@ export function PaymentDialog({
   selfId?: string;
   onSubmit: (cardIds: CardId[]) => void;
 }) {
-  const [selected, setSelected] = useState<Set<CardId>>(new Set());
+  const suggestion = useMemo(
+    () => suggestPayment(payer, amountOwed, payee),
+    [payer, amountOwed, payee],
+  );
+  // Pre-fill with the suggested payment — identical to what the turn timer
+  // would take on timeout, so confirming fast never does worse than stalling.
+  const [selected, setSelected] = useState<Set<CardId>>(() => new Set(suggestion.cardIds));
 
   const totalAssetCount = payer.bank.length + payer.propertySets.reduce((s, g) => s + g.cardIds.length, 0);
   const offeredValue = Array.from(selected).reduce(
@@ -599,6 +660,7 @@ export function PaymentDialog({
   );
   const allOffered = selected.size === totalAssetCount;
   const enough = offeredValue >= amountOwed;
+  const overpay = Math.max(0, offeredValue - amountOwed);
   const canSubmit = totalAssetCount === 0 || enough || allOffered;
 
   function toggle(cid: CardId) {
@@ -610,6 +672,25 @@ export function PaymentDialog({
     });
   }
 
+  // Danger: this payment completes a set for the demander. The single
+  // costliest beginner mistake in payment — surface it loudly. Per-card
+  // badges catch the one-short case; the aggregate check catches batches
+  // (two oranges paid to a 1/3 orange payee complete the set together even
+  // though each card alone looks safe).
+  const dangerColorFor = (cid: CardId): SetColor | null =>
+    payee ? completesSetForReceiver(cardById(cid), payee) : null;
+  const selectionDangers = payee ? paymentCompletesSets(Array.from(selected), payee) : [];
+  const payeeCompleted = payee ? distinctCompletedSets(payee) : 0;
+
+  // Stable sorted views. Bank ascending by value; loose-set groups before
+  // complete groups so the safe cards come first.
+  const bankSorted = [...payer.bank].sort(
+    (a, b) => bankValueOf(cardById(a)) - bankValueOf(cardById(b)) || a.localeCompare(b),
+  );
+  const groupsSorted = [...payer.propertySets]
+    .map((g) => ({ ...g, complete: isComplete(g) }))
+    .sort((a, b) => Number(a.complete) - Number(b.complete));
+
   const triggerEntry = lastMustShow(state.log);
   return (
     <Modal title={`You owe $${amountOwed}M`} testId="payment-dialog">
@@ -619,23 +700,43 @@ export function PaymentDialog({
           {reason}
         </p>
       )}
+      {payee && <PayeeSummary payee={payee} />}
       <p className="mb-3 text-sm text-[var(--color-ink-soft)]">
         Selected: <span className="tabular font-semibold text-[var(--color-ink)]">${offeredValue}M</span>
-        {!enough && totalAssetCount > 0 && " (less than owed — must offer everything)"}
-        {offeredValue > amountOwed && " (overpaying — no change given)"}
+        {enough && overpay === 0 && (
+          <span className="ml-1.5 font-semibold text-[var(--color-success)]">exact change</span>
+        )}
+        {overpay > 0 && (
+          <span className="ml-1.5 font-semibold text-[var(--color-warning)]" data-testid="payment-overpay">
+            overpaying ${overpay}M — no change given
+          </span>
+        )}
+        {!enough && totalAssetCount > 0 && " — less than owed, so you must offer everything"}
       </p>
+      {selectionDangers.length > 0 && (
+        <p
+          className="mb-3 text-sm font-semibold text-[var(--color-accent)]"
+          data-testid="payment-danger-warning"
+        >
+          {selectionDangers.map((color) => (
+            <span key={color} className="block">
+              ⚠ This payment completes their {SET_LABEL[color]} set
+              {payeeCompleted >= 2 ? " — that could win them the game!" : "."}
+            </span>
+          ))}
+        </p>
+      )}
 
-      {/* Smart auto-cover: pick cheapest cards summing >= owed. */}
       {totalAssetCount > 0 && (
         <div className="mb-3 flex gap-2">
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setSelected(autoCover(payer, amountOwed))}
+            onClick={() => setSelected(new Set(suggestion.cardIds))}
             data-testid="payment-auto"
           >
-            Auto-pay (cheapest)
+            Suggested payment
           </Button>
           <Button
             type="button"
@@ -648,11 +749,11 @@ export function PaymentDialog({
         </div>
       )}
 
-      {payer.bank.length > 0 && (
+      {bankSorted.length > 0 && (
         <section className="mb-3">
           <h4 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">Bank</h4>
           <div className="flex flex-wrap gap-2">
-            {payer.bank.map((cid) => (
+            {bankSorted.map((cid) => (
               <Card
                 key={cid}
                 cardId={cid}
@@ -666,25 +767,45 @@ export function PaymentDialog({
         </section>
       )}
 
-      {payer.propertySets.length > 0 && (
-        <section className="mb-3">
-          <h4 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">Properties</h4>
-          <div className="flex flex-wrap gap-2">
-            {payer.propertySets.flatMap((g) =>
-              g.cardIds.map((cid) => (
-                <Card
-                  key={cid}
-                  cardId={cid}
-                  size="sm"
-                  selected={selected.has(cid)}
-                  onClick={() => toggle(cid)}
-                  animated={false}
-                />
-              )),
+      {groupsSorted.map((g) => (
+        <section key={g.color} className="mb-3">
+          <h4 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: setColorVar(g.color) }}
+            />
+            {SET_LABEL[g.color]}
+            {g.complete && (
+              <span className="font-bold text-[var(--color-accent)]">· complete set</span>
             )}
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {g.cardIds.map((cid) => {
+              const danger = dangerColorFor(cid);
+              return (
+                <div key={cid} className="relative">
+                  <Card
+                    cardId={cid}
+                    size="sm"
+                    selected={selected.has(cid)}
+                    onClick={() => toggle(cid)}
+                    animated={false}
+                  />
+                  {danger && (
+                    <span
+                      className="pointer-events-none absolute -right-1 -top-1 rounded-full bg-[var(--color-accent)] px-1 text-[9px] font-bold leading-4 text-white"
+                      title={`Completes ${payee?.name}'s ${SET_LABEL[danger]} set`}
+                      data-testid="payment-danger-badge"
+                    >
+                      ⚠
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
-      )}
+      ))}
 
       <Button
         variant="primary"
@@ -700,42 +821,20 @@ export function PaymentDialog({
   );
 }
 
-// Greedy auto-pay. Mirrors `pickAutoPayment` in engine/autoAction.ts: bank
-// cheapest-first, then loose-set property cards cheapest-first, then complete-
-// set property cards cheapest-first as a last resort. Without the tiering, a
-// $1 brown standing in a complete pair would be picked over a $2 loose pink,
-// breaking your monopoly to cover a $1 debt — exactly the worst auto-pay.
-// If total assets are less than owed, returns ALL assets (must-offer-everything).
-function autoCover(payer: ProjectedPlayer, owed: number): Set<CardId> {
-  const bank = payer.bank.map((id) => ({ id, value: bankValueOf(cardById(id)) }));
-  const looseProps: { id: CardId; value: number }[] = [];
-  const completeProps: { id: CardId; value: number }[] = [];
-  for (const g of payer.propertySets) {
-    const isComplete = g.cardIds.length >= SET_DEFS[g.color].complete;
-    const bucket = isComplete ? completeProps : looseProps;
-    for (const cid of g.cardIds) bucket.push({ id: cid, value: bankValueOf(cardById(cid)) });
+// Short human label for a card being handed over ("Boardwalk", "$5M", "wild").
+function describePaidCard(cid: CardId): string {
+  const c = cardById(cid);
+  switch (c.kind) {
+    case "property":
+      return c.name;
+    case "money":
+      return `$${c.value}M`;
+    case "wild2":
+    case "wild10":
+      return "a wildcard";
+    case "action":
+      return `$${c.value}M`;
   }
-  const total =
-    bank.reduce((s, c) => s + c.value, 0) +
-    looseProps.reduce((s, c) => s + c.value, 0) +
-    completeProps.reduce((s, c) => s + c.value, 0);
-  if (total <= owed) {
-    return new Set([...bank, ...looseProps, ...completeProps].map((c) => c.id));
-  }
-  const byValue = (a: { value: number }, b: { value: number }) => a.value - b.value;
-  bank.sort(byValue);
-  looseProps.sort(byValue);
-  completeProps.sort(byValue);
-  const ordered = [...bank, ...looseProps, ...completeProps];
-  const picked: CardId[] = [];
-  let sum = 0;
-  for (const c of ordered) {
-    if (sum >= owed) break;
-    if (c.value === 0) continue; // $0 wilds don't help cover the threshold
-    picked.push(c.id);
-    sum += c.value;
-  }
-  return new Set(picked);
 }
 
 // ---------------------------------------------------------------------------
@@ -781,9 +880,31 @@ export function JsnPrompt({
   // Pull the live declaration so we can phrase the pass button in terms of
   // the actual consequence ("Pay $1M" beats "Let it happen" — the latter
   // reads as a shrug exactly when the player most needs concrete copy).
-  const declaration =
-    state.pending?.kind === "awaitJustSayNo" ? state.pending.declaration : undefined;
-  const passLabel = passLabelForJsn(declaration, preview);
+  const pendingJsn = state.pending?.kind === "awaitJustSayNo" ? state.pending : undefined;
+  const declaration = pendingJsn?.declaration;
+  // When the responder is the original actor (deciding whether to counter a
+  // defender's JSN), the stakes invert: passing means their own action is
+  // canceled — nothing transfers, nothing is owed. The at-stake previews and
+  // "Pay $X" pass copy are all defender-framed, so they only render for
+  // defenders.
+  const responderIsActor = pendingJsn?.responderIsActor ?? false;
+  const passLabel = passLabelForJsn(declaration, preview, responderIsActor);
+  // What passing actually costs the defender, using the same solver as the
+  // payment dialog — the JSN decision is only informed if you can see which
+  // cards you'd hand over before the window closes.
+  const responder = state.players.find((p) => p.id === selfId);
+  const payeeForCost =
+    declaration && "sourceId" in declaration
+      ? state.players.find((p) => p.id === declaration.sourceId)
+      : undefined;
+  const passCost = useMemo(() => {
+    if (responderIsActor || preview?.kind !== "amount" || !responder) return null;
+    return suggestPayment(responder, preview.amount, payeeForCost);
+  }, [responderIsActor, preview, responder, payeeForCost]);
+  // Distinguish "found the payer, they own nothing" (debt truly forgiven)
+  // from "couldn't resolve the payer" (don't claim anything about cost).
+  const responderIsBroke =
+    passCost != null && passCost.cardIds.length === 0 && passCost.total === 0;
   return (
     <Modal
       title={chainDepth === 0 ? "Just Say No?" : `Just Say No chain · depth ${chainDepth}`}
@@ -792,7 +913,14 @@ export function JsnPrompt({
       <TriggerEntryCard entry={triggerEntry} state={state} selfId={selfId} />
       <p className="mb-2 font-semibold text-[var(--color-ink)]">{responderName}, your call:</p>
       <p className="mb-3 text-sm text-[var(--color-ink-soft)]">{prompt}</p>
-      {preview?.kind === "card" && (
+      {responderIsActor && (
+        <div className="mb-3 rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-tint)] p-3 text-sm text-[var(--color-ink-soft)]">
+          <span className="font-semibold text-[var(--color-ink)]">At stake: </span>
+          They said No. Counter with your own Just Say No to force the action
+          through, or accept — your card is spent either way.
+        </div>
+      )}
+      {!responderIsActor && preview?.kind === "card" && (
         <div className="mb-3 flex items-center gap-3 rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-tint)] p-3">
           <Card cardId={preview.cardId} size="sm" animated={false} />
           <div className="text-xs text-[var(--color-ink-soft)]">
@@ -801,14 +929,48 @@ export function JsnPrompt({
           </div>
         </div>
       )}
-      {preview?.kind === "amount" && (
+      {!responderIsActor && preview?.kind === "amount" && (
         <div className="mb-3 rounded-xl border border-[var(--color-ink)]/15 bg-[var(--color-tint)] p-3 text-sm text-[var(--color-ink-soft)]">
           <span className="font-semibold text-[var(--color-ink)]">At stake: </span>
           You'll owe <span className="tabular font-semibold text-[var(--color-ink)]">${preview.amount}M</span>.
-          You can pay with money or properties.
+          {passCost && passCost.cardIds.length > 0 ? (
+            <div className="mt-2" data-testid="jsn-pass-cost">
+              <div className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
+                Passing would hand over (suggested)
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {passCost.cardIds.map((cid) => (
+                  <Card key={cid} cardId={cid} size="sm" animated={false} />
+                ))}
+              </div>
+              {passCost.shortfall > 0 && (
+                <div className="mt-1.5 text-xs font-semibold text-[var(--color-warning)]">
+                  Everything you own — ${passCost.shortfall}M of the debt is forgiven.
+                </div>
+              )}
+              {passCost.breaksCompleteSet && (
+                <div className="mt-1.5 text-xs font-semibold text-[var(--color-accent)]">
+                  ⚠ Covering this breaks one of your complete sets.
+                </div>
+              )}
+              {passCost.usesProperties && !passCost.breaksCompleteSet && (
+                <div className="mt-1.5 text-xs font-semibold text-[var(--color-warning)]">
+                  Your bank can't cover it — properties leave the table.
+                </div>
+              )}
+            </div>
+          ) : responderIsBroke ? (
+            <div className="mt-1.5 text-xs font-semibold text-[var(--color-ink)]">
+              You have nothing to pay with — the debt would be forgiven.
+            </div>
+          ) : (
+            <div className="mt-1.5 text-xs text-[var(--color-ink-soft)]">
+              You'll choose which cards to pay with.
+            </div>
+          )}
         </div>
       )}
-      {preview?.kind === "set" && (
+      {!responderIsActor && preview?.kind === "set" && (
         <div
           className="mb-3 rounded-xl border-2 border-[var(--color-accent)] bg-[var(--color-accent-tint)] p-3"
           data-testid="jsn-preview-set"
@@ -884,7 +1046,10 @@ function passLabelForJsn(
     | { kind: "amount"; amount: number }
     | { kind: "set"; cardIds: CardId[]; color: SetColor }
     | undefined,
+  responderIsActor: boolean,
 ): string {
+  // The actor passing accepts the defender's JSN: their action fizzles.
+  if (responderIsActor) return "Accept the No";
   if (preview?.kind === "amount") return `Pay $${preview.amount}M`;
   if (declaration?.kind === "slyDeal") return "Allow steal";
   if (declaration?.kind === "forcedDeal") return "Allow swap";

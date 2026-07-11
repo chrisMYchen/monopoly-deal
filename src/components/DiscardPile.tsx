@@ -51,18 +51,22 @@ export function DiscardPile({
         <span className="tabular">{count}</span>
       </button>
     ) : (
-      <button
-        type="button"
-        onClick={() => count > 0 && setOpen(true)}
-        disabled={count === 0}
-        className="flex flex-col items-center gap-1 disabled:cursor-default"
-        aria-label={count > 0 ? `Discard pile, ${count} cards` : "Discard pile, empty"}
-      >
+      // Card renders its own <button>, so it must own the click — wrapping it
+      // in another button is invalid HTML and triggers hydration errors.
+      <div className="flex flex-col items-center gap-1">
         {topCardId ? (
-          <Card cardId={topCardId} size={size} animated={false} />
+          <Card
+            cardId={topCardId}
+            size={size}
+            animated={false}
+            onClick={count > 0 ? () => setOpen(true) : undefined}
+            ariaLabel={`Discard pile, ${count} cards — tap to view`}
+          />
         ) : (
           <div
             className={`flex items-center justify-center rounded-md border border-dashed border-white/20 text-[10px] opacity-40 ${EMPTY_PLACEHOLDER[size]}`}
+            role="img"
+            aria-label="Discard pile, empty"
           >
             empty
           </div>
@@ -70,7 +74,7 @@ export function DiscardPile({
         <div className="text-[10px] uppercase tracking-widest opacity-50">
           Discard {count > 0 && `· ${count}`}
         </div>
-      </button>
+      </div>
     );
   return (
     <>

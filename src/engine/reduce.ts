@@ -79,7 +79,9 @@ export type Action =
 // Constants
 // ---------------------------------------------------------------------------
 
-const HAND_LIMIT = 7;
+// Exported for the UI's mid-turn hand-size warning; the limit itself is only
+// enforced here at END_TURN.
+export const HAND_LIMIT = 7;
 const TURN_DRAW = 2;
 const EMPTY_HAND_DRAW = 5;
 const PLAYS_PER_TURN = 3;

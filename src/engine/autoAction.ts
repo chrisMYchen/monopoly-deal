@@ -3,9 +3,10 @@
 // that decision when the timer expires. The worker calls these — the engine
 // itself stays free of wall-clock concerns.
 
-import { SET_DEFS, bankValueOf, cardById, type CardId, type SetColor } from "./cards";
+import { bankValueOf, cardById, type CardId } from "./cards";
+import { suggestPayment } from "./payment";
 import type { Action } from "./reduce";
-import type { GameState, Pending, Player, PlayerId, PropertySet } from "./state";
+import type { GameState, Pending, Player, PlayerId } from "./state";
 
 // Who the timer is currently counting down on. Returns null when no one is
 // on the clock (lobby, ended, or a malformed state).
@@ -49,7 +50,8 @@ export function autoActionFor(state: GameState): Action | null {
     case "awaitPayment": {
       const payer = state.players.find((p) => p.id === playerId);
       if (!payer) return null;
-      const cardIds = pickAutoPayment(payer, pending.amountOwed);
+      const payee = state.players.find((p) => p.id === pending.payeeId);
+      const cardIds = pickAutoPayment(payer, pending.amountOwed, payee);
       return { type: "PAY", playerId, cardIds };
     }
 
@@ -62,42 +64,14 @@ export function autoActionFor(state: GameState): Action | null {
   }
 }
 
-// Pick the lowest-value subset of cards (bank first, then "least valuable"
-// property cards) that covers `amountOwed`. Avoids breaking complete sets when
-// a non-set-breaking selection still covers the debt. If the player can't
-// cover the debt, returns every asset they own (engine treats this as paying
-// what they have).
-export function pickAutoPayment(payer: Player, amountOwed: number): CardId[] {
-  const bankSorted = [...payer.bank].sort(
-    (a, b) => bankValueOf(cardById(a)) - bankValueOf(cardById(b)),
-  );
-  const looseProps: CardId[] = []; // properties in incomplete sets
-  const completeProps: CardId[] = []; // properties in complete sets — last resort
-  for (const group of payer.propertySets) {
-    const target = isComplete(group) ? completeProps : looseProps;
-    for (const cid of group.cardIds) target.push(cid);
-  }
-  const sortByValue = (a: CardId, b: CardId) =>
-    bankValueOf(cardById(a)) - bankValueOf(cardById(b));
-  looseProps.sort(sortByValue);
-  completeProps.sort(sortByValue);
-
-  const ordered = [...bankSorted, ...looseProps, ...completeProps];
-  const totalValue = ordered.reduce((sum, cid) => sum + bankValueOf(cardById(cid)), 0);
-
-  if (totalValue <= amountOwed) {
-    // Pay everything we have; engine forgives the rest.
-    return ordered;
-  }
-
-  const picked: CardId[] = [];
-  let acc = 0;
-  for (const cid of ordered) {
-    if (acc >= amountOwed) break;
-    picked.push(cid);
-    acc += bankValueOf(cardById(cid));
-  }
-  return picked;
+// Pick the payment set for `amountOwed` via the canonical solver in
+// payment.ts: never gift the payee a set-completing card, exact change over
+// greedy (no change is given), bank before loose properties before
+// complete-set cards, fewest cards on ties. If the player can't cover the
+// debt, returns every asset they own (engine treats this as paying what
+// they have).
+export function pickAutoPayment(payer: Player, amountOwed: number, payee?: Player): CardId[] {
+  return suggestPayment(payer, amountOwed, payee).cardIds;
 }
 
 // Discard the N lowest-bank-value cards from the player's hand, breaking ties
@@ -110,8 +84,4 @@ export function pickAutoDiscard(hand: CardId[], count: number): CardId[] {
     return a.localeCompare(b);
   });
   return ordered.slice(0, count);
-}
-
-function isComplete(group: PropertySet): boolean {
-  return group.cardIds.length >= SET_DEFS[group.color as SetColor].complete;
 }

@@ -7,6 +7,7 @@ import {
   assertDeckTotals,
   bankValueOf,
   cardById,
+  countInDeck,
 } from "./cards";
 
 describe("cards.ts deck composition", () => {
@@ -99,5 +100,50 @@ describe("cardById", () => {
 
   it("throws on unknown id", () => {
     expect(() => cardById("not-a-card")).toThrow();
+  });
+});
+
+describe("countInDeck", () => {
+  it("counts 2 Deal Breakers and 3 Just Say Nos", () => {
+    const db = DECK.find((c) => c.kind === "action" && c.action === "dealBreaker")!;
+    const jsn = DECK.find((c) => c.kind === "action" && c.action === "justSayNo")!;
+    expect(countInDeck(db)).toBe(2);
+    expect(countInDeck(jsn)).toBe(3);
+  });
+
+  it("counts money by denomination", () => {
+    const m1 = DECK.find((c) => c.kind === "money" && c.value === 1)!;
+    const m10 = DECK.find((c) => c.kind === "money" && c.value === 10)!;
+    expect(countInDeck(m1)).toBe(6);
+    expect(countInDeck(m10)).toBe(1);
+  });
+
+  it("counts properties by color-set size", () => {
+    const brown = DECK.find((c) => c.kind === "property" && c.set === "brown")!;
+    const railroad = DECK.find((c) => c.kind === "property" && c.set === "railroad")!;
+    expect(countInDeck(brown)).toBe(2);
+    expect(countInDeck(railroad)).toBe(4);
+  });
+
+  it("separates the wild ★ rent from two-color rents", () => {
+    const wildRent = DECK.find(
+      (c) => c.kind === "action" && c.action === "rent" && c.rentSingleTarget === true,
+    )!;
+    const twoColor = DECK.find(
+      (c) => c.kind === "action" && c.action === "rent" && c.rentSingleTarget !== true,
+    )!;
+    expect(countInDeck(wildRent)).toBe(3);
+    // Two-color rents are grouped by their color pair, never mixed with wild.
+    expect(countInDeck(twoColor)).toBeLessThan(DECK.filter((c) => c.kind === "action" && c.action === "rent").length);
+  });
+
+  it("counts wild2 copies per color pair, and both rainbow wilds", () => {
+    const wild2 = DECK.find((c) => c.kind === "wild2")!;
+    const sameCombo = DECK.filter(
+      (c) => c.kind === "wild2" && c.sets[0] === (wild2 as { sets: string[] }).sets[0] && c.sets[1] === (wild2 as { sets: string[] }).sets[1],
+    ).length;
+    expect(countInDeck(wild2)).toBe(sameCombo);
+    const wild10 = DECK.find((c) => c.kind === "wild10")!;
+    expect(countInDeck(wild10)).toBe(2);
   });
 });
