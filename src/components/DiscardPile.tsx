@@ -65,6 +65,7 @@ export function DiscardPile({
         ) : (
           <div
             className={`flex items-center justify-center rounded-md border border-dashed border-white/20 text-[10px] opacity-40 ${EMPTY_PLACEHOLDER[size]}`}
+            role="img"
             aria-label="Discard pile, empty"
           >
             empty

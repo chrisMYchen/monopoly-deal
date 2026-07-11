@@ -57,14 +57,22 @@ export function subscribeAssistPrefs(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-// React view of the prefs. Starts with defaults (SSR-safe) and syncs on mount.
+// React view of the prefs. Starts with defaults (SSR-safe) and syncs on
+// mount. Also listens to the browser's storage event so toggling an assist
+// in one tab disables it in every tab — two tabs both auto-acting on the
+// same seat amplifies duplicate-action noise.
 export function useAssistPrefs(): { autoDraw: boolean; autoEndTurn: boolean } {
   const [prefs, setPrefs] = useState({ autoDraw: true, autoEndTurn: true });
   useEffect(() => {
     const sync = () =>
       setPrefs({ autoDraw: isAutoDrawEnabled(), autoEndTurn: isAutoEndTurnEnabled() });
     sync();
-    return subscribeAssistPrefs(sync);
+    const unsubscribe = subscribeAssistPrefs(sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("storage", sync);
+    };
   }, []);
   return prefs;
 }

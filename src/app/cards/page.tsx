@@ -11,11 +11,23 @@ import Link from "next/link";
 import { Card } from "@/components/Card";
 import { Wordmark } from "@/components/ui/Wordmark";
 import {
-  ACTION_LABELS,
   DECK,
   countInDeck,
   type Card as CardData,
 } from "@/engine/cards";
+
+// Live composition counts, derived from the deck so the footer can't drift
+// from cards.ts (assertDeckTotals guards the deck, not display copy).
+const COMPOSITION = DECK.reduce(
+  (acc, c) => {
+    if (c.kind === "money") acc.money++;
+    else if (c.kind === "property") acc.properties++;
+    else if (c.kind === "wild2" || c.kind === "wild10") acc.wilds++;
+    else acc.actions++;
+    return acc;
+  },
+  { money: 0, properties: 0, wilds: 0, actions: 0 },
+);
 
 // One representative per functionally-identical group, in a stable, readable
 // order: money → properties → wilds → actions → rents.
@@ -146,9 +158,9 @@ export default function CardsPage() {
       </section>
 
       <p className="text-xs text-[var(--color-ink-faint)]">
-        Composition: 20 money · 28 properties · 11 wilds · 51 actions (
-        {Object.entries(ACTION_LABELS).length} kinds). The discard pile is
-        public in play — counting what&apos;s left is up to you.
+        Composition: {COMPOSITION.money} money · {COMPOSITION.properties} properties ·{" "}
+        {COMPOSITION.wilds} wilds · {COMPOSITION.actions} actions ({DECK.length} total).
+        The discard pile is public in play — counting what&apos;s left is up to you.
       </p>
     </main>
   );

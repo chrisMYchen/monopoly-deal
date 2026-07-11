@@ -6,6 +6,7 @@ import { useDraggable } from "@dnd-kit/core";
 
 import { Card, type CardSize } from "./Card";
 import { cardById, type CardId } from "@/engine/cards";
+import { HAND_LIMIT } from "@/engine/reduce";
 import { handSortKey } from "@/engine/selectors";
 
 type SortMode = "asis" | "kind";
@@ -79,9 +80,9 @@ export function HandView({
       <div className="flex items-center justify-between gap-2 px-2 text-[11px] uppercase tracking-widest opacity-70">
         {/* Hand limit is end-of-turn only: holding 8+ mid-turn is legal (and
             often correct), so this warns without blocking anything. */}
-        {hand.length > 7 ? (
+        {hand.length > HAND_LIMIT ? (
           <span className="font-bold text-white opacity-100" data-testid="hand-limit-warning">
-            Hand · {hand.length} — keep 7 at end of turn
+            Hand · {hand.length} — keep {HAND_LIMIT} at end of turn
           </span>
         ) : (
           <span>Hand · {hand.length}</span>

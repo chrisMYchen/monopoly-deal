@@ -50,7 +50,8 @@ export function autoActionFor(state: GameState): Action | null {
     case "awaitPayment": {
       const payer = state.players.find((p) => p.id === playerId);
       if (!payer) return null;
-      const cardIds = pickAutoPayment(payer, pending.amountOwed);
+      const payee = state.players.find((p) => p.id === pending.payeeId);
+      const cardIds = pickAutoPayment(payer, pending.amountOwed, payee);
       return { type: "PAY", playerId, cardIds };
     }
 
@@ -64,12 +65,13 @@ export function autoActionFor(state: GameState): Action | null {
 }
 
 // Pick the payment set for `amountOwed` via the canonical solver in
-// payment.ts: exact change over greedy (no change is given), bank before
-// loose properties before complete-set cards, fewest cards on ties. If the
-// player can't cover the debt, returns every asset they own (engine treats
-// this as paying what they have).
-export function pickAutoPayment(payer: Player, amountOwed: number): CardId[] {
-  return suggestPayment(payer, amountOwed).cardIds;
+// payment.ts: never gift the payee a set-completing card, exact change over
+// greedy (no change is given), bank before loose properties before
+// complete-set cards, fewest cards on ties. If the player can't cover the
+// debt, returns every asset they own (engine treats this as paying what
+// they have).
+export function pickAutoPayment(payer: Player, amountOwed: number, payee?: Player): CardId[] {
+  return suggestPayment(payer, amountOwed, payee).cardIds;
 }
 
 // Discard the N lowest-bank-value cards from the player's hand, breaking ties

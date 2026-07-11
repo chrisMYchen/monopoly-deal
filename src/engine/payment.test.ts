@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DECK, bankValueOf, cardById, type CardId, type SetColor } from "./cards";
-import { completesSetForReceiver, suggestPayment } from "./payment";
+import { completesSetForReceiver, paymentCompletesSets, suggestPayment } from "./payment";
 import type { PropertySet } from "./state";
 
 function findCard(predicate: (c: (typeof DECK)[number]) => boolean): string {
@@ -124,10 +124,89 @@ describe("suggestPayment", () => {
     expect(s.shortfall).toBe(5);
   });
 
-  it("is deterministic regardless of input order", () => {
+  it("returns an empty suggestion when nothing is owed", () => {
+    const s = suggestPayment(assets({ bank: [m5, m1] }), 0);
+    expect(s.cardIds).toEqual([]);
+    expect(s.total).toBe(0);
+    expect(s.overpay).toBe(0);
+    expect(s.shortfall).toBe(0);
+  });
+
+  it("prefers overpaying with loose assets over exact change from a complete set", () => {
+    // owe 4: exact = a $1 from the complete brown pair; alternative = two loose
+    // green $4s? too big. Use: loose red $3 + bank $2 = $5 overpay beats the
+    // brown-breaking exact $4. Tier (complete-set value) dominates the $1 overpay.
+    const reds = allOf((c) => c.kind === "property" && c.set === "red");
+    const browns = allOf((c) => c.kind === "property" && c.set === "brown");
+    const s = suggestPayment(
+      assets({
+        bank: [m2],
+        propertySets: [
+          group("red", [reds[0]!]),
+          group("brown", [browns[0]!, browns[1]!]),
+        ],
+      }),
+      4,
+    );
+    expect(s.breaksCompleteSet).toBe(false);
+    expect(s.cardIds.sort()).toEqual([m2, reds[0]!].sort());
+    expect(s.overpay).toBe(1);
+  });
+
+  it("returned card order is stable across input permutations", () => {
     const a = suggestPayment(assets({ bank: [m5, m1, m3, m1b] }), 4);
     const b = suggestPayment(assets({ bank: [m1b, m3, m1, m5] }), 4);
-    expect(a.cardIds.sort()).toEqual(b.cardIds.sort());
+    expect(a.cardIds).toEqual(b.cardIds);
+  });
+
+  it("avoids gifting the payee a set-completing card when an equal-value one exists", () => {
+    // Two loose $2 pinks in the payer's bank-equivalent: one completes the
+    // payee's 2/3 pink set, the other is a lone yellow. Owe $2 → solver must
+    // pick the non-gifting one even though both are $2 and same tier.
+    const pinks = allOf((c) => c.kind === "property" && c.set === "pink");
+    const yellows = allOf((c) => c.kind === "property" && c.set === "yellow");
+    const payee = assets({
+      propertySets: [group("pink", [pinks[0]!, pinks[1]!])],
+    });
+    const s = suggestPayment(
+      assets({
+        propertySets: [group("pink", [pinks[2]!]), group("yellow", [yellows[0]!])],
+      }),
+      3, // pink value is 2, yellow is 3 — force a property-only pay of $3
+      payee,
+    );
+    // The $3 yellow covers it alone without gifting; the $2 pink would gift.
+    expect(s.cardIds).toEqual([yellows[0]!]);
+  });
+});
+
+describe("paymentCompletesSets", () => {
+  const oranges = allOf((c) => c.kind === "property" && c.set === "orange");
+  const browns = allOf((c) => c.kind === "property" && c.set === "brown");
+
+  it("flags a batch that collectively completes a set (per-card looks safe)", () => {
+    // Payee holds 1/3 orange. Paying two oranges completes it — neither card
+    // alone (1+1 < 3-1) trips the per-card completesSetForReceiver check.
+    const payee = assets({ propertySets: [group("orange", [oranges[0]!])] });
+    expect(completesSetForReceiver(cardById(oranges[1]!), payee)).toBeNull();
+    expect(paymentCompletesSets([oranges[1]!, oranges[2]!], payee)).toEqual(["orange"]);
+  });
+
+  it("returns nothing when the batch stays short of completion", () => {
+    const lightBlues = allOf((c) => c.kind === "property" && c.set === "lightBlue");
+    const payee = assets({ propertySets: [group("lightBlue", [lightBlues[0]!])] });
+    expect(paymentCompletesSets([lightBlues[1]!], payee)).toEqual([]);
+  });
+
+  it("ignores already-complete sets", () => {
+    const payee = assets({ propertySets: [group("brown", [browns[0]!, browns[1]!])] });
+    expect(paymentCompletesSets([browns[0]!], payee)).toEqual([]);
+  });
+
+  it("counts a wild toward completing a one-short set", () => {
+    const wild = DECK.find((c) => c.kind === "wild2" && c.sets.includes("orange"));
+    const payee = assets({ propertySets: [group("orange", [oranges[0]!, oranges[1]!])] });
+    expect(paymentCompletesSets([wild!.id], payee)).toEqual(["orange"]);
   });
 });
 

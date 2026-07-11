@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "motion/react";
 import {
   DndContext,
@@ -221,17 +221,25 @@ function PlayingTableInner({
     return () => window.clearTimeout(timer);
   }, [state.log]);
 
-  const send = (action: Action) => client.sendAction(action);
+  const send = useCallback((action: Action) => client.sendAction(action), [client]);
 
   // ----- Gameplay assists (per-player, localStorage) -----
   const assists = useAssistPrefs();
+  // Assists only fire on a live socket. While reconnecting, wsClient queues
+  // every send for replay — a stale queued END_TURN could legally end the
+  // player's NEXT turn after the server timer resolved this one.
+  const connection = useGame((s) => s.connection);
 
   // Auto-draw: the start-of-turn draw is mandatory and choice-free, so send
   // it after a short beat (the delay keeps the draw reading as an event, not
   // a teleport). Engine-side hasDrawnThisTurn makes a duplicate a no-op rule
   // error at worst; the cleanup clears the timer as soon as the echo lands.
   const drawEligible =
-    assists.autoDraw && isMyTurn && !state.hasDrawnThisTurn && state.pending === null;
+    assists.autoDraw &&
+    isMyTurn &&
+    connection === "open" &&
+    !state.hasDrawnThisTurn &&
+    state.pending === null;
   useEffect(() => {
     if (!drawEligible) return;
     const t = window.setTimeout(
@@ -239,27 +247,38 @@ function PlayingTableInner({
       600,
     );
     return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawEligible, selfId]);
+  }, [drawEligible, selfId, send]);
 
   // Auto-end: once all plays are spent and nothing is pending, count down and
   // end the turn. Cancellable ("Stay") because free wildcard reassignment
   // after the last play is a real defensive move — never hard auto-end.
+  // Paused while a card is selected: on mobile the peek sheet covers the
+  // ActionBar (and its Stay button), so the countdown must not run unseen.
+  // Suppressed when the server turn deadline is about to fire anyway — two
+  // racing END_TURNs means one guaranteed rejection.
   const [autoEndStayed, setAutoEndStayed] = useState(false);
   const [autoEndLeft, setAutoEndLeft] = useState(AUTO_END_SECONDS);
+  const autoEndSentRef = useRef(false);
+  const serverDeadlineImminent =
+    state.turnDeadlineMs != null &&
+    state.turnDeadlineMs - Date.now() < (AUTO_END_SECONDS + 3) * 1000;
   const autoEndEligible =
     assists.autoEndTurn &&
     !autoEndStayed &&
     isMyTurn &&
+    connection === "open" &&
     state.hasDrawnThisTurn &&
     state.playsRemaining === 0 &&
     state.pending === null &&
-    draft === null;
+    draft === null &&
+    selectedCardId === null &&
+    !serverDeadlineImminent;
   useEffect(() => {
-    // Re-arm the countdown + Stay flag whenever the turn leaves us.
+    // Re-arm the countdown, Stay flag, and send latch when the turn leaves us.
     if (!isMyTurn) {
       setAutoEndStayed(false);
       setAutoEndLeft(AUTO_END_SECONDS);
+      autoEndSentRef.current = false;
     }
   }, [isMyTurn]);
   useEffect(() => {
@@ -267,15 +286,20 @@ function PlayingTableInner({
       setAutoEndLeft(AUTO_END_SECONDS);
       return;
     }
-    const iv = window.setInterval(() => setAutoEndLeft((n) => n - 1), 1000);
+    const iv = window.setInterval(
+      () => setAutoEndLeft((n) => Math.max(0, n - 1)),
+      1000,
+    );
     return () => window.clearInterval(iv);
   }, [autoEndEligible]);
   useEffect(() => {
-    if (autoEndEligible && autoEndLeft <= 0) {
+    // Latched: exactly one END_TURN per turn, no matter how slow the echo.
+    // Re-sends with fresh clientActionIds would bypass the DO's dedup ring.
+    if (autoEndEligible && autoEndLeft <= 0 && !autoEndSentRef.current) {
+      autoEndSentRef.current = true;
       send({ type: "END_TURN", playerId: selfId });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoEndEligible, autoEndLeft, selfId]);
+  }, [autoEndEligible, autoEndLeft, selfId, send]);
 
   // Register the latest drag-end handler so the outer DndContext routes
   // through this component's closure (with current state + setters).
@@ -917,7 +941,9 @@ function PlayingTableInner({
           }
         />
       )}
-      {isMobile && selectedCardId && (
+      {/* Hand-membership guard: a turn-timer auto-discard can remove the
+          peeked card; a stale sheet would offer plays the server rejects. */}
+      {isMobile && selectedCardId && self.hand.includes(selectedCardId) && (
         <PeekSheet
           cardId={selectedCardId}
           self={self}
