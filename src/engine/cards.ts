@@ -349,6 +349,36 @@ export function cardById(id: CardId): Card {
   return c;
 }
 
+// How many functionally-identical copies of this card the 110-card deck
+// contains. Static composition only — the same knowledge printed on the real
+// box. Live "how many remain" counting is deliberately NOT provided: reading
+// the public discard pile is a player skill, not a UI feature.
+export function countInDeck(card: Card): number {
+  switch (card.kind) {
+    case "money":
+      return DECK.filter((c) => c.kind === "money" && c.value === card.value).length;
+    case "property":
+      // Solid properties are unique by name; the useful number is how many
+      // cards exist in this color set.
+      return DECK.filter((c) => c.kind === "property" && c.set === card.set).length;
+    case "wild2":
+      return DECK.filter(
+        (c) => c.kind === "wild2" && c.sets[0] === card.sets[0] && c.sets[1] === card.sets[1],
+      ).length;
+    case "wild10":
+      return DECK.filter((c) => c.kind === "wild10").length;
+    case "action":
+      if (card.action === "rent") {
+        const key = (c: ActionCard) =>
+          `${c.rentSingleTarget ? "wild" : (c.rentSets ?? []).join("+")}`;
+        return DECK.filter(
+          (c) => c.kind === "action" && c.action === "rent" && key(c) === key(card),
+        ).length;
+      }
+      return DECK.filter((c) => c.kind === "action" && c.action === card.action).length;
+  }
+}
+
 // Money value of a card when banked (played sideways into your bank).
 // Wild cards have no money value — they cannot be banked.
 export function bankValueOf(card: Card): number {

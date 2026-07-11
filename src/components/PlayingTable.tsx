@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { LayoutGroup } from "motion/react";
+import { LayoutGroup, motion } from "motion/react";
 import {
   DndContext,
   DragOverlay,
@@ -24,10 +24,11 @@ import {
 import type { ProjectedGameState, ProjectedPlayer } from "@/engine/project";
 import type { Action } from "@/engine/reduce";
 import { useGame } from "@/lib/gameStore";
+import { useAssistPrefs } from "@/lib/assistPrefs";
 import type { WsClient } from "@/lib/wsClient";
 
 import { Button } from "./ui/Button";
-import { Card, CardBack } from "./Card";
+import { Card, CardBack, cardLabel, describeCard, deckCountLine } from "./Card";
 import { FxToggles } from "./FxToggles";
 import {
   CompleteSetPicker,
@@ -143,6 +144,10 @@ export function PlayingTable(props: { client: WsClient }) {
 // it without prop-drilling through 17 Wrapper sites.
 let playingTableHandleDragEnd: ((e: DragEndEvent) => void) | null = null;
 
+// Seconds the auto-end countdown gives the player to keep rearranging wilds
+// (or just breathe) before the turn ends itself.
+const AUTO_END_SECONDS = 5;
+
 function PlayingTableInner({
   client,
   setDragHandler,
@@ -157,6 +162,9 @@ function PlayingTableInner({
   const opponents = state.players.filter((p) => p.id !== selfId);
   const currentPlayer = state.players[state.currentTurn]!;
   const isMyTurn = currentPlayer.id === selfId;
+  // Peek-to-play on mobile: tapping/swiping-up a hand card opens the peek
+  // sheet (big card + description + play buttons); drag-to-zone is disabled.
+  const isMobile = useIsMobile();
 
   const [selectedCardId, setSelectedCardId] = useState<CardId | null>(null);
   const [draft, setDraft] = useState<ActionDraft>(null);
@@ -214,6 +222,60 @@ function PlayingTableInner({
   }, [state.log]);
 
   const send = (action: Action) => client.sendAction(action);
+
+  // ----- Gameplay assists (per-player, localStorage) -----
+  const assists = useAssistPrefs();
+
+  // Auto-draw: the start-of-turn draw is mandatory and choice-free, so send
+  // it after a short beat (the delay keeps the draw reading as an event, not
+  // a teleport). Engine-side hasDrawnThisTurn makes a duplicate a no-op rule
+  // error at worst; the cleanup clears the timer as soon as the echo lands.
+  const drawEligible =
+    assists.autoDraw && isMyTurn && !state.hasDrawnThisTurn && state.pending === null;
+  useEffect(() => {
+    if (!drawEligible) return;
+    const t = window.setTimeout(
+      () => send({ type: "DRAW_TURN_START", playerId: selfId }),
+      600,
+    );
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawEligible, selfId]);
+
+  // Auto-end: once all plays are spent and nothing is pending, count down and
+  // end the turn. Cancellable ("Stay") because free wildcard reassignment
+  // after the last play is a real defensive move — never hard auto-end.
+  const [autoEndStayed, setAutoEndStayed] = useState(false);
+  const [autoEndLeft, setAutoEndLeft] = useState(AUTO_END_SECONDS);
+  const autoEndEligible =
+    assists.autoEndTurn &&
+    !autoEndStayed &&
+    isMyTurn &&
+    state.hasDrawnThisTurn &&
+    state.playsRemaining === 0 &&
+    state.pending === null &&
+    draft === null;
+  useEffect(() => {
+    // Re-arm the countdown + Stay flag whenever the turn leaves us.
+    if (!isMyTurn) {
+      setAutoEndStayed(false);
+      setAutoEndLeft(AUTO_END_SECONDS);
+    }
+  }, [isMyTurn]);
+  useEffect(() => {
+    if (!autoEndEligible) {
+      setAutoEndLeft(AUTO_END_SECONDS);
+      return;
+    }
+    const iv = window.setInterval(() => setAutoEndLeft((n) => n - 1), 1000);
+    return () => window.clearInterval(iv);
+  }, [autoEndEligible]);
+  useEffect(() => {
+    if (autoEndEligible && autoEndLeft <= 0) {
+      send({ type: "END_TURN", playerId: selfId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoEndEligible, autoEndLeft, selfId]);
 
   // Register the latest drag-end handler so the outer DndContext routes
   // through this component's closure (with current state + setters).
@@ -449,10 +511,14 @@ function PlayingTableInner({
   }
 
   if (state.pending?.kind === "awaitPayment" && state.pending.payerId === selfId) {
+    const payment = state.pending;
+    const payee = state.players.find((p) => p.id === payment.payeeId);
     return (
       <Wrapper state={state}>
         <PaymentDialog
+          key={`${state.pending.actionCardId}-${state.pending.amountOwed}`}
           payer={self}
+          payee={payee}
           amountOwed={state.pending.amountOwed}
           reason={describeDeclaration(state.pending.declaration, state)}
           state={state}
@@ -835,13 +901,33 @@ function PlayingTableInner({
         <ActionBar
           state={state}
           self={self}
-          selectedCardId={selectedCardId}
+          // On mobile the peek sheet owns the card action buttons.
+          selectedCardId={isMobile ? null : selectedCardId}
           onPlay={(action) => {
             send(action);
             setSelectedCardId(null);
           }}
           onDraw={() => send({ type: "DRAW_TURN_START", playerId: selfId })}
           onEndTurn={() => send({ type: "END_TURN", playerId: selfId })}
+          beginDraft={(d) => setDraft(d)}
+          autoEnd={
+            autoEndEligible
+              ? { left: autoEndLeft, onStay: () => setAutoEndStayed(true) }
+              : null
+          }
+        />
+      )}
+      {isMobile && selectedCardId && (
+        <PeekSheet
+          cardId={selectedCardId}
+          self={self}
+          state={state}
+          isMyTurn={isMyTurn}
+          onClose={() => setSelectedCardId(null)}
+          onPlay={(action) => {
+            send(action);
+            setSelectedCardId(null);
+          }}
           beginDraft={(d) => setDraft(d)}
         />
       )}
@@ -1319,7 +1405,12 @@ function SelfArea({
           <span className="ml-auto opacity-60">${self.bank.reduce((s, cid) => s + bankValue(cid), 0)}M</span>
         </DropZone>
       )}
-      <HandView hand={self.hand} selectedCardId={selectedCardId} onSelect={onCardSelect} />
+      <HandView
+        hand={self.hand}
+        selectedCardId={selectedCardId}
+        onSelect={onCardSelect}
+        dragDisabled={isMobile}
+      />
     </section>
   );
 }
@@ -1371,6 +1462,102 @@ function SelfBankSheet({ self, onClose }: { self: ProjectedPlayer; onClose: () =
 }
 
 // ---------------------------------------------------------------------------
+// PeekSheet — the mobile card interaction surface. Tap or swipe-up on a hand
+// card raises it here: full-size face, mechanic text, deck count, and the
+// explicit play/bank buttons. Swipe down, tap away, or "Put back" dismisses.
+// Nothing commits from a gesture — with no undo in the game, every play goes
+// through a labeled button.
+// ---------------------------------------------------------------------------
+
+function PeekSheet({
+  cardId,
+  self,
+  state,
+  isMyTurn,
+  onClose,
+  onPlay,
+  beginDraft,
+}: {
+  cardId: CardId;
+  self: ProjectedPlayer;
+  state: ProjectedGameState;
+  isMyTurn: boolean;
+  onClose: () => void;
+  onPlay: (a: Action) => void;
+  beginDraft: (d: ActionDraft) => void;
+}) {
+  const card = cardById(cardId);
+  const canAct = isMyTurn && state.hasDrawnThisTurn && state.pending === null;
+  const startYRef = useRef<number | null>(null);
+  return (
+    <div
+      className="fixed inset-0 z-40 bg-black/30"
+      onClick={onClose}
+      data-testid="peek-sheet-scrim"
+    >
+      <motion.div
+        initial={{ y: 48, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.16, ease: [0.18, 0.9, 0.3, 1.05] }}
+        className="surface-felt absolute inset-x-0 bottom-0 rounded-t-2xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[var(--color-ink-on-dark)]"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => {
+          startYRef.current = e.touches[0]?.clientY ?? null;
+        }}
+        onTouchMove={(e) => {
+          const y = e.touches[0]?.clientY;
+          if (startYRef.current != null && y != null && y - startYRef.current > 60) {
+            startYRef.current = null;
+            onClose();
+          }
+        }}
+        onTouchEnd={() => {
+          startYRef.current = null;
+        }}
+        data-testid="peek-sheet"
+      >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/30" aria-hidden />
+        <div className="flex items-start gap-4">
+          <Card cardId={cardId} size="lg" animated={false} />
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-lg font-semibold leading-tight">
+              {cardLabel(card)}
+            </div>
+            <p className="mt-1.5 text-sm leading-snug text-white/80">{describeCard(card)}</p>
+            <p className="tabular mt-2 text-xs font-semibold text-white/60">
+              {deckCountLine(card)}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {canAct ? (
+            <CardActionButtons
+              cardId={cardId}
+              self={self}
+              state={state}
+              onPlay={onPlay}
+              beginDraft={beginDraft}
+            />
+          ) : (
+            <p className="flex-1 text-sm text-white/70">
+              {isMyTurn ? "Draw first, then play." : "Not your turn — info only."}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-11 rounded-full bg-white/10 px-4 text-sm font-semibold transition-colors hover:bg-white/20"
+            data-testid="peek-put-back"
+          >
+            Put back
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ActionBar — what you can do with the selected card
 // ---------------------------------------------------------------------------
 
@@ -1382,6 +1569,7 @@ function ActionBar({
   onDraw,
   onEndTurn,
   beginDraft,
+  autoEnd,
 }: {
   state: ProjectedGameState;
   self: ProjectedPlayer;
@@ -1390,6 +1578,8 @@ function ActionBar({
   onDraw: () => void;
   onEndTurn: () => void;
   beginDraft: (d: ActionDraft) => void;
+  // Live auto-end countdown, or null when it isn't running.
+  autoEnd: { left: number; onStay: () => void } | null;
 }) {
   if (!state.hasDrawnThisTurn) {
     return (
@@ -1412,14 +1602,16 @@ function ActionBar({
     return (
       <BarShell>
         <p className="flex-1 self-center text-sm text-[var(--color-ink-on-dark)]/80">
-          Tap a card in your hand to play, or end your turn.
+          {playsLeft === 0
+            ? "Plays spent — rearrange wilds or end your turn."
+            : "Tap a card in your hand to play, or end your turn."}
         </p>
+        {autoEnd && <AutoEndPill left={autoEnd.left} onStay={autoEnd.onStay} />}
         <EndTurnButton playsLeft={playsLeft} onEndTurn={onEndTurn} />
       </BarShell>
     );
   }
 
-  const card = cardById(selectedCardId);
   return (
     <BarShell>
       <CardActionButtons
@@ -1429,8 +1621,29 @@ function ActionBar({
         onPlay={onPlay}
         beginDraft={beginDraft}
       />
+      {autoEnd && <AutoEndPill left={autoEnd.left} onStay={autoEnd.onStay} />}
       <EndTurnButton playsLeft={state.playsRemaining} onEndTurn={onEndTurn} />
     </BarShell>
+  );
+}
+
+// Cancellable auto-end countdown. "Stay" arms off for the rest of this turn.
+function AutoEndPill({ left, onStay }: { left: number; onStay: () => void }) {
+  return (
+    <div
+      className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs text-[var(--color-ink-on-dark)]"
+      data-testid="auto-end-pill"
+    >
+      <span className="tabular">Ending in {Math.max(0, left)}s</span>
+      <button
+        type="button"
+        onClick={onStay}
+        className="rounded-full bg-white/15 px-2 py-0.5 font-semibold transition-colors hover:bg-white/25"
+        data-testid="auto-end-stay"
+      >
+        Stay
+      </button>
+    </div>
   );
 }
 

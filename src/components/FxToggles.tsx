@@ -1,7 +1,8 @@
 "use client";
 
-// Small icon cluster for muting sound + disabling haptics. Persists to
-// localStorage via preferences.ts. Lives in the TopBanner so it's always
+// Small icon cluster for muting sound + disabling haptics, plus the gameplay
+// assist toggles (auto-draw, auto-end-turn). Persists to localStorage via
+// preferences.ts / assistPrefs.ts. Lives in the TopBanner so it's always
 // reachable without occluding the action bar.
 
 import { useEffect, useState } from "react";
@@ -13,6 +14,11 @@ import {
   setHapticsDisabled,
   subscribePreferences,
 } from "@/lib/animations/preferences";
+import {
+  setAutoDrawEnabled,
+  setAutoEndTurnEnabled,
+  useAssistPrefs,
+} from "@/lib/assistPrefs";
 
 function useHasVibrate(): boolean {
   const [has, setHas] = useState(false);
@@ -26,6 +32,7 @@ export function FxToggles() {
   const [muted, setMuted] = useState(false);
   const [hapticOff, setHapticOff] = useState(false);
   const hasVibrate = useHasVibrate();
+  const assists = useAssistPrefs();
 
   useEffect(() => {
     setMuted(isAudioMuted());
@@ -64,6 +71,34 @@ export function FxToggles() {
           <span className="sr-only">{hapticOff ? "Haptics off" : "Haptics on"}</span>
         </button>
       )}
+      <button
+        type="button"
+        onClick={() => setAutoDrawEnabled(!assists.autoDraw)}
+        title={
+          assists.autoDraw
+            ? "Auto-draw on — your start-of-turn draw happens by itself"
+            : "Auto-draw off — tap Draw yourself each turn"
+        }
+        aria-pressed={assists.autoDraw}
+        className={[baseCls, assists.autoDraw ? "" : "opacity-50 line-through"].join(" ")}
+        data-testid="assist-autodraw"
+      >
+        Auto-draw
+      </button>
+      <button
+        type="button"
+        onClick={() => setAutoEndTurnEnabled(!assists.autoEndTurn)}
+        title={
+          assists.autoEndTurn
+            ? "Auto-end on — turn ends after a short countdown once your plays are spent (tap Stay to keep rearranging wilds)"
+            : "Auto-end off — always end your turn manually"
+        }
+        aria-pressed={assists.autoEndTurn}
+        className={[baseCls, assists.autoEndTurn ? "" : "opacity-50 line-through"].join(" ")}
+        data-testid="assist-autoend"
+      >
+        Auto-end
+      </button>
     </div>
   );
 }

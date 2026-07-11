@@ -7,9 +7,11 @@ import { ACTION_ART, ACTION_THEME } from "./card-art";
 import {
   ACTION_DESCRIPTIONS,
   ACTION_LABELS,
+  ALL_COLORS,
   SET_DEFS,
   SET_LABEL,
   cardById,
+  countInDeck,
   type Card as CardData,
   type CardId,
   type SetColor,
@@ -116,6 +118,9 @@ export function Card({
         >
           <div className="font-semibold">{cardLabel(card)}</div>
           <div className="mt-0.5 opacity-80">{describeCard(card)}</div>
+          <div className="mt-1 tabular text-[10px] font-semibold opacity-70" data-testid="deck-count">
+            {deckCountLine(card)}
+          </div>
           <div className="mt-1 text-[10px] uppercase tracking-widest opacity-50">
             tap to dismiss
           </div>
@@ -169,8 +174,23 @@ export function Card({
   );
 }
 
-// Plain-language description for the inspector popover.
-function describeCard(card: CardData): string {
+// Static deck-composition line for the inspector. Knowing there are only two
+// Deal Breakers (or three Just Say Nos) is the number that shapes late-game
+// set protection — beginners genuinely don't know it.
+export function deckCountLine(card: CardData): string {
+  const n = countInDeck(card);
+  switch (card.kind) {
+    case "property":
+      return `One of ${n} ${SET_LABEL[card.set]} properties in the deck`;
+    case "wild2":
+      return `${n} of this combo in the 110-card deck`;
+    default:
+      return `${n} in the 110-card deck`;
+  }
+}
+
+// Plain-language description for the inspector popover and the peek sheet.
+export function describeCard(card: CardData): string {
   switch (card.kind) {
     case "money":
       return `Money. Banked face-up for $${card.value}M.`;
@@ -253,6 +273,22 @@ function MoneyFace({ value }: { value: 1 | 2 | 3 | 4 | 5 | 10 }) {
 // Layout mirrors classic Monopoly Deal property cards.
 // ---------------------------------------------------------------------------
 
+// Full-height color strip on the card's leading edge. The hand fan overlaps
+// down to a ~22px sliver of each card's LEFT edge, so color identity must
+// survive there — the top band alone gets mostly occluded.
+function ColorRail({ colors }: { colors: SetColor[] }) {
+  return (
+    <div
+      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[5px] flex-col"
+      aria-hidden
+    >
+      {colors.map((c, i) => (
+        <div key={i} className={`${SET_BG[c]} flex-1`} />
+      ))}
+    </div>
+  );
+}
+
 function PropertyFace({
   card,
   size,
@@ -262,7 +298,7 @@ function PropertyFace({
 }) {
   const ladder = SET_DEFS[card.set].rentLadder;
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="relative flex h-full w-full flex-col">
       <div className={`${SET_BG[card.set]} flex h-[28%] items-end px-1.5 pb-0.5`}>
         <div
           className={`text-[0.55em] font-semibold uppercase tracking-[0.2em] ${SET_BAND_INK[card.set]} opacity-90`}
@@ -283,6 +319,7 @@ function PropertyFace({
         <span className="rounded bg-zinc-100 px-1 py-0.5 font-mono">${card.value}M</span>
         <span className="opacity-60">Deed</span>
       </div>
+      <ColorRail colors={[card.set]} />
     </div>
   );
 }
@@ -307,7 +344,7 @@ function abbreviateProperty(name: string): string {
 
 function Wild2Face({ sets }: { sets: [SetColor, SetColor] }) {
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="relative flex h-full w-full flex-col">
       <div className="grid h-[40%] w-full grid-cols-2">
         <div className={SET_BG[sets[0]]} />
         <div className={SET_BG[sets[1]]} />
@@ -323,13 +360,14 @@ function Wild2Face({ sets }: { sets: [SetColor, SetColor] }) {
       <div className="px-1.5 pb-1 text-[0.5em] font-semibold uppercase tracking-[0.18em] opacity-60">
         Property Wild
       </div>
+      <ColorRail colors={[sets[0], sets[1]]} />
     </div>
   );
 }
 
 function Wild10Face() {
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="relative flex h-full w-full flex-col">
       <div className="grid h-[40%] w-full grid-cols-5 grid-rows-2">
         <div className="bg-[var(--color-set-brown)]" />
         <div className="bg-[var(--color-set-light-blue)]" />
@@ -353,6 +391,7 @@ function Wild10Face() {
       <div className="px-1.5 pb-1 text-[0.5em] font-semibold uppercase tracking-[0.18em] opacity-60">
         Multicolor
       </div>
+      <ColorRail colors={ALL_COLORS} />
     </div>
   );
 }
@@ -398,42 +437,43 @@ function ActionFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
 }
 
 // ---------------------------------------------------------------------------
-// Rent face — color bands at the top show which property colors this rent
-// targets. Two stripes for 2-color rents; full 10-color grid for the wild ★.
-// Mirrors the look of real Monopoly Deal rent cards (which are dominated by
-// the color identification, not a single themed background).
+// Rent face — the color field IS the card, like the physical Monopoly Deal
+// rent cards: ~55% of the face is the target colors with a white RENT roundel
+// punched into the middle. Which colors you can charge should be readable
+// across the table; the word "Rent" is almost decoration.
 // ---------------------------------------------------------------------------
 
 function RentFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
-  const Art = ACTION_ART.rent;
   const sets = card.rentSets ?? [];
   const isWild = card.rentSingleTarget === true;
 
   return (
-    <div className="flex h-full w-full flex-col bg-white text-zinc-900">
-      {/* color bands — two horizontal stripes for 2-color rent, 5x2 grid for wild ★ */}
-      {isWild ? (
-        <div className="grid h-[34%] w-full grid-cols-5 grid-rows-2">
-          <div className="bg-[var(--color-set-brown)]" />
-          <div className="bg-[var(--color-set-light-blue)]" />
-          <div className="bg-[var(--color-set-pink)]" />
-          <div className="bg-[var(--color-set-orange)]" />
-          <div className="bg-[var(--color-set-red)]" />
-          <div className="bg-[var(--color-set-yellow)]" />
-          <div className="bg-[var(--color-set-green)]" />
-          <div className="bg-[var(--color-set-dark-blue)]" />
-          <div className="bg-[var(--color-set-railroad)]" />
-          <div className="bg-[var(--color-set-utility)]" />
+    <div className="relative flex h-full w-full flex-col bg-white text-zinc-900">
+      {/* color field — two stacked stripes for 2-color rent, 5x2 grid for wild ★ */}
+      <div className="relative h-[55%] w-full">
+        {isWild ? (
+          <div className="grid h-full w-full grid-cols-5 grid-rows-2">
+            {ALL_COLORS.map((c) => (
+              <div key={c} className={SET_BG[c]} />
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-full w-full flex-col">
+            {sets.map((c, i) => (
+              <div key={i} className={`${SET_BG[c]} flex-1`} />
+            ))}
+          </div>
+        )}
+        {/* white RENT roundel — the physical-card signature */}
+        <div className="absolute left-1/2 top-1/2 flex aspect-square -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-white px-[0.55em] py-[0.55em] ring-1 ring-zinc-900/20">
+          <span className="font-card text-[1.05em] uppercase leading-none tracking-[0.02em]">
+            Rent
+          </span>
+          {isWild && <span className="mt-[1px] text-[0.6em] leading-none">★</span>}
         </div>
-      ) : (
-        <div className="flex h-[34%] w-full flex-col">
-          {sets.map((c, i) => (
-            <div key={i} className={`${SET_BG[c]} flex-1`} />
-          ))}
-        </div>
-      )}
+      </div>
 
-      {/* top tag row — "ACTION" + bank chip, sitting on white */}
+      {/* tag row — "ACTION" + bank chip, sitting on white */}
       <div className="flex items-center justify-between px-1.5 pt-1 text-[0.55em] font-semibold uppercase tracking-[0.2em] text-zinc-500">
         <span>Action</span>
         <span className="rounded-sm bg-zinc-100 px-1 py-[1px] font-mono text-zinc-900">
@@ -441,13 +481,13 @@ function RentFace({ card }: { card: Extract<CardData, { kind: "action" }> }) {
         </span>
       </div>
 
-      {/* illustration + title — fills the middle band */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-1 px-2 py-1">
-        <Art className="h-full w-full max-h-[58%] text-[var(--color-action-rent)]" />
-        <div className="font-card text-[1.1em] uppercase leading-[1.05] tracking-[0.02em] text-zinc-900">
-          {isWild ? "★ Rent" : "Rent"}
+      {/* target microcopy — who pays */}
+      <div className="flex flex-1 items-center justify-center px-1 text-center">
+        <div className="text-[0.55em] font-semibold uppercase tracking-[0.14em] opacity-60">
+          {isWild ? "Any color · one opponent" : "All opponents pay"}
         </div>
       </div>
+      <ColorRail colors={isWild ? ALL_COLORS : sets} />
     </div>
   );
 }

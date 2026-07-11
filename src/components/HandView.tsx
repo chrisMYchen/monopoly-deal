@@ -23,10 +23,14 @@ export function HandView({
   hand,
   selectedCardId,
   onSelect,
+  dragDisabled = false,
 }: {
   hand: CardId[];
   selectedCardId: CardId | null;
   onSelect: (cardId: CardId | null) => void;
+  // Peek-to-play mode (mobile): dnd drag is off; dragging a card upward
+  // selects it (opening the peek sheet) instead of starting a drag.
+  dragDisabled?: boolean;
 }) {
   const [sort, setSort] = useState<SortMode>("asis");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -73,7 +77,15 @@ export function HandView({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2 px-2 text-[11px] uppercase tracking-widest opacity-70">
-        <span>Hand · {hand.length}</span>
+        {/* Hand limit is end-of-turn only: holding 8+ mid-turn is legal (and
+            often correct), so this warns without blocking anything. */}
+        {hand.length > 7 ? (
+          <span className="font-bold text-white opacity-100" data-testid="hand-limit-warning">
+            Hand · {hand.length} — keep 7 at end of turn
+          </span>
+        ) : (
+          <span>Hand · {hand.length}</span>
+        )}
         <button
           onClick={() => setSort((s) => (s === "asis" ? "kind" : "asis"))}
           className="rounded border border-white/15 px-1.5 py-0.5 hover:bg-white/5"
@@ -104,8 +116,10 @@ export function HandView({
                 size={size}
                 selected={selectedCardId === cid}
                 onSelect={() => onSelect(selectedCardId === cid ? null : cid)}
+                onPeek={() => onSelect(cid)}
                 left={i * step}
                 z={selectedCardId === cid ? 999 : i + 1}
+                dragDisabled={dragDisabled}
               />
             ))}
           </motion.div>
@@ -118,30 +132,56 @@ export function HandView({
 // Hand card wrapped in dnd-kit's useDraggable. Positioned absolutely so the
 // fan layout can overlap cards without horizontal scroll. dnd-kit's overlay
 // renders the drag preview, so the source stays in place (just dims).
+//
+// With dragDisabled (peek-to-play mode), dnd listeners are not attached;
+// instead a small upward swipe selects the card — the same effect as a tap,
+// so the "raise the card to look at it" instinct just works.
 function DraggableCard({
   cardId,
   size,
   selected,
   onSelect,
+  onPeek,
   left,
   z,
+  dragDisabled,
 }: {
   cardId: CardId;
   size: CardSize;
   selected: boolean;
   onSelect: () => void;
+  onPeek: () => void;
   left: number;
   z: number;
+  dragDisabled: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `hand-${cardId}`,
     data: { cardId, source: "hand" },
+    disabled: dragDisabled,
   });
+  const startYRef = useRef<number | null>(null);
+  const swipeProps = dragDisabled
+    ? {
+        onTouchStart: (e: React.TouchEvent) => {
+          startYRef.current = e.touches[0]?.clientY ?? null;
+        },
+        onTouchMove: (e: React.TouchEvent) => {
+          const y = e.touches[0]?.clientY;
+          if (startYRef.current != null && y != null && startYRef.current - y > 36) {
+            startYRef.current = null;
+            onPeek();
+          }
+        },
+        onTouchEnd: () => {
+          startYRef.current = null;
+        },
+      }
+    : { ...attributes, ...listeners };
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
+      ref={dragDisabled ? undefined : setNodeRef}
+      {...swipeProps}
       className={`absolute top-0 ${isDragging ? "opacity-30" : ""}`}
       style={{ left: `${left}px`, zIndex: z }}
     >

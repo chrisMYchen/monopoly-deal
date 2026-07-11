@@ -175,9 +175,24 @@ function OpponentChip({
     data: { kind: "opponent", opponentId: playerId },
   });
   return (
-    <button
+    // Not a <button>: the chip contains Card components which render their
+    // own <button>s, and nested buttons are invalid HTML (hydration errors).
+    // role/tabIndex/keydown keep it keyboard- and AT-reachable.
+    <div
       ref={setNodeRef}
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       data-testid={`opponent-${playerId}`}
       data-player-id={playerId}
       data-player-chip={playerId}
@@ -204,7 +219,7 @@ function OpponentChip({
         />
       )}
       {children}
-    </button>
+    </div>
   );
 }
 
